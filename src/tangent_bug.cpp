@@ -19,10 +19,10 @@ public:
       std::bind(&TangentBug::laserCallback, this, std::placeholders::_1)
     );
 
-    laser_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
       "/odom",
-      rclcpp::SensorDataQoS(),
-      std::bind(&TangentBug::laserCallback, this, std::placeholders::_1)
+      10,
+      std::bind(&TangentBug::odomCallback, this, std::placeholders::_1)
     );
 
     cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
@@ -62,7 +62,6 @@ private:
         new_point = r_yaw * new_point + robot_pos;
 
         laser_points.push_back(new_point);
-
       }
 
       // incrementa o angulo
