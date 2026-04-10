@@ -1,9 +1,9 @@
-#include "nav_msgs/msg/odometry.hpp"
+#include <cmath>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <eigen3/Eigen/Eigen>
+#include <eigen3/Eigen/Dense>
 #include <vector>
 
 class TangentBug : public rclcpp::Node
@@ -42,23 +42,53 @@ public:
 private:
   void laserCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
   {
-    last_scan_ = msg;
-    // TODO: change so it converts to (x,y) points and stores them directly
+    laser_points.clear();
+
+    Eigen::Rotation2Dd r_yaw(robot_yaw);
+
+    double current_angle = msg->angle_min;
+    for (size_t i = 0; i < msg->ranges.size(); i++)
+    {
+      // get points relative to the robot
+      double r = msg->ranges[i];
+
+      if (std::isfinite(r))
+      {
+        Eigen::Vector2d new_point(0,0);
+        new_point.x() = r * std::cos(current_angle);
+        new_point.y() = r * std::sin(current_angle);
+
+        // transform the points to the map using the robot pose
+        new_point = r_yaw * new_point + robot_pos;
+
+        laser_points.push_back(new_point);
+
+      }
+
+      // incrementa o angulo
+      current_angle += msg->angle_increment;
+    }
   }
 
-  void odomCallback(const nav_msgs::msg::Odometry msg)
+  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
-    // TODO: store x, y and yaw
+    // get position
+    robot_pos.x() = msg->pose.pose.position.x;
+    robot_pos.y() = msg->pose.pose.position.y;
+
+    // get quaternion and extract yaw
+    double x = msg->pose.pose.orientation.x;
+    double y = msg->pose.pose.orientation.y;
+    double z = msg->pose.pose.orientation.z;
+    double w = msg->pose.pose.orientation.w;
+
+    double siny_cosp = 2.0 * (w * z + x * y);
+    double cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
+    robot_yaw = std::atan2(siny_cosp, cosy_cosp);
   }
 
   void timerCallback()
   {
-    if (!last_scan_) {
-      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-        "Waiting for laser scan...");
-      return;
-    }
-
     auto twist = geometry_msgs::msg::Twist();
 
     // TODO: implement Tangent Bug logic here using last_scan_
@@ -85,13 +115,11 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      cmd_vel_pub_;
   rclcpp::TimerBase::SharedPtr                                 control_timer_;
 
-  sensor_msgs::msg::LaserScan::SharedPtr last_scan_;
+  std::vector<Eigen::Vector2d> laser_points; 
 
   Eigen::Vector2d goal;
   Eigen::Vector2d robot_pos;
   double          robot_yaw;
-
-  std::vector<Eigen::Vector2d> laser_points; 
 };
 
 int main(int argc, char ** argv)
