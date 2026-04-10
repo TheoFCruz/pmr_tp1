@@ -3,6 +3,8 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <eigen3/Eigen/Eigen>
+#include <vector>
 
 class TangentBug : public rclcpp::Node
 {
@@ -46,7 +48,7 @@ private:
 
   void odomCallback(const nav_msgs::msg::Odometry msg)
   {
-    // store x, y and yaw
+    // TODO: store x, y and yaw
   }
 
   void timerCallback()
@@ -63,13 +65,13 @@ private:
     // 
     // check if line to goal intercepts known obstacle
     //   if it doesn't, send velocity in the goal direction and return
-    // get discontinuity points and calculate
-    // calculate the heuristic to determine the goal point
+    // get discontinuity points 
+    // calculate the heuristic to determine the best discontinuity point
     // compare d_reach to d_followed
     //   if d_reach <= d_followed, store it as d_followed and follow behavior 1
     //   if d_reach > d_followed, follow behavior 2
     // behavior 1 (move to goal):
-    //   send velocity towards goal point
+    //   send velocity towards best discontinuity point
     // behavior 2 (boundary follow):
     //   send velocity towards the next discontinuity point 
 
@@ -84,6 +86,12 @@ private:
   rclcpp::TimerBase::SharedPtr                                 control_timer_;
 
   sensor_msgs::msg::LaserScan::SharedPtr last_scan_;
+
+  Eigen::Vector2d goal;
+  Eigen::Vector2d robot_pos;
+  double          robot_yaw;
+
+  std::vector<Eigen::Vector2d> laser_points; 
 };
 
 int main(int argc, char ** argv)
