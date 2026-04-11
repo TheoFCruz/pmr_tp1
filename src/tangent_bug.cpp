@@ -79,7 +79,7 @@ private:
         laser_points.push_back(new_point);
       }
 
-      // incrementa o angulo
+      // next angle
       current_angle += msg->angle_increment;
     }
   }
@@ -99,6 +99,14 @@ private:
     double siny_cosp = 2.0 * (w * z + x * y);
     double cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
     robot_yaw = std::atan2(siny_cosp, cosy_cosp);
+
+    // check if goal was reached
+    if (goal_received && (robot_pos - goal).norm() <= TOLERANCE)
+    {
+      RCLCPP_INFO(this->get_logger(), "Goal reached. Stopping control loop");
+      sendVelocity(Eigen::Vector2d::Zero());
+      goal_received = false;
+    }
   }
 
   void goalCallback(geometry_msgs::msg::Point::SharedPtr msg)
@@ -112,20 +120,21 @@ private:
   {
     if (!goal_received) return;
 
-    // TODO: implement Tangent Bug logic here using last_scan_
-    // 
-    // check if line to goal intercepts known obstacle
-    //   if it doesn't, send velocity in the goal direction and return
-    
+    // if path to goal is clear, send direct velocity
     if (isGoalClear())
     {
       Eigen::Vector2d vel = goal - robot_pos;
       vel = vel.normalized() * SPEED;
       sendVelocity(vel);
+      return;
     } 
 
     // get discontinuity points 
+    std::vector<Eigen::Vector2d> discontinuities = getDiscontinuities();
+
     // calculate the heuristic to determine the best discontinuity point
+    Eigen::Vector2d disc_point = calculateHeuristic(discontinuities);
+
     // compare d_reach to d_followed
     //   if d_reach <= d_followed, store it as d_followed and follow behavior 1
     //   if d_reach > d_followed, follow behavior 2
@@ -133,13 +142,10 @@ private:
     //   send velocity towards best discontinuity point
     // behavior 2 (boundary follow):
     //   send velocity towards the next discontinuity point 
-    
-    // check if goal reached
-    if ((robot_pos - goal).norm() <= TOLERANCE)
-    {
-      RCLCPP_INFO(this->get_logger(), "Goal reached. Stopping control loop");
-      goal_received = false;
-    }
+
+    // NOTE: before sending the velocity it should be checked if the robot 
+    // is to close to an obstacle and avoid a collision. I imagine removing the
+    // velocity component normal to the obstacle might be enough.
   }
 
   // ----------------- Utility Functions ----------------------
@@ -181,6 +187,54 @@ private:
     cmd_vel_pub->publish(vel_twist);
   }
 
+  std::vector<Eigen::Vector2d> getDiscontinuities()
+  {
+    // returns instantly if there are 0 or 1 point to avoid size_t underflow
+    if (laser_points.size() < 2) return laser_points;
+
+    // compares the distance between one point and the next
+    const double THRESHOLD = 0.3;
+    std::vector<Eigen::Vector2d> discontinuities;
+    for (size_t i = 0; i < laser_points.size() - 1; i++)
+    {
+      if ((laser_points[i] - laser_points[i+1]).norm() >= THRESHOLD)
+      {
+        discontinuities.push_back(laser_points[i]);
+        discontinuities.push_back(laser_points[i+1]);
+      }
+    }
+
+    // compare first and last points
+    if ((laser_points[0] - laser_points[laser_points.size() - 1]).norm() >= THRESHOLD)
+    {
+      discontinuities.push_back(laser_points[0]);
+      discontinuities.push_back(laser_points[laser_points.size() - 1]);
+    }
+
+    return discontinuities;
+  }
+
+  Eigen::Vector2d calculateHeuristic(std::vector<Eigen::Vector2d> &discontinuities)
+  {
+    if (discontinuities.empty()) return goal;
+
+    Eigen::Vector2d best = discontinuities[0];
+    double min_cost = 1000;
+
+    for (const auto& point : discontinuities)
+    {
+      double cost = (goal - point).norm() + (point - robot_pos).norm();
+      
+      if (cost < min_cost)
+      {
+        best = point;
+        min_cost = cost;
+      }
+    }
+
+    return best;
+  }
+
   // --------------------- Variables --------------------------
   
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub;
@@ -192,7 +246,7 @@ private:
   // laser points vector
   std::vector<Eigen::Vector2d> laser_points; 
 
-  // robot and goal variables
+  // robot and goal
   Eigen::Vector2d goal;
   Eigen::Vector2d robot_pos;
   double          robot_yaw;
