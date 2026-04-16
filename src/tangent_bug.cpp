@@ -61,6 +61,9 @@ private:
     // used for robot -> map reference
     Eigen::Rotation2Dd r_yaw = Eigen::Rotation2Dd(robot_yaw); 
 
+    // get closest obstacle point
+    double min_dist = 1000;
+
     double current_angle = msg->angle_min;
     for (size_t i = 0; i < msg->ranges.size(); i++)
     {
@@ -77,6 +80,12 @@ private:
         new_point = r_yaw * new_point + robot_pos;
 
         laser_points.push_back(new_point);
+
+        if (r < min_dist)
+        {
+          closest_point = new_point;
+          min_dist = r;
+        }
       }
 
       // next angle
@@ -134,6 +143,7 @@ private:
 
     // calculate the heuristic to determine the best discontinuity point
     Eigen::Vector2d disc_point = calculateHeuristic(discontinuities);
+    sendVelocity((disc_point - robot_pos).normalized()*SPEED);
 
     // compare d_reach to d_followed
     //   if d_reach <= d_followed, store it as d_followed and follow behavior 1
@@ -172,6 +182,8 @@ private:
 
   void sendVelocity(Eigen::Vector2d vel)
   {
+    vel = getSafeVelocity(vel);
+
     double v_x = vel.x();
     double v_y = vel.y();
 
@@ -185,6 +197,28 @@ private:
     vel_twist.angular.z = w;
 
     cmd_vel_pub->publish(vel_twist);
+  }
+
+  Eigen::Vector2d getSafeVelocity(Eigen::Vector2d desired_vel)
+  {
+    // return if no obstacles
+    if (laser_points.empty()) return desired_vel; 
+
+    // return if not too close
+    double range = (closest_point - robot_pos).norm();
+    if (range > SAFE_RADIUS) return desired_vel;
+
+    // return if velocity isn't going towards obstacle
+    RCLCPP_INFO(this->get_logger(), "Teste1");
+    if (desired_vel.dot(closest_point - robot_pos) <= 0) return desired_vel;
+
+    // remove normal component
+    RCLCPP_INFO(this->get_logger(), "Too close to the obstacle, setting safe velocity");
+    Eigen::Vector2d n = (closest_point - robot_pos).normalized();
+    double projection = desired_vel.dot(n);
+    Eigen::Vector2d result_vel = (desired_vel - projection*n).normalized()*SPEED;
+
+    return result_vel;
   }
 
   std::vector<Eigen::Vector2d> getDiscontinuities()
@@ -245,6 +279,7 @@ private:
 
   // laser points vector
   std::vector<Eigen::Vector2d> laser_points; 
+  Eigen::Vector2d              closest_point;
 
   // robot and goal
   Eigen::Vector2d goal;
@@ -256,9 +291,9 @@ private:
 
   // consts
   const double SPEED = 0.5;
-  const double SAFE_RADIUS = 0.25;
-  const double D = 0.1;
-  const double TOLERANCE = 0.1;
+  const double SAFE_RADIUS = 0.5;
+  const double D = 0.05;
+  const double TOLERANCE = 0.05;
 };
 
 int main(int argc, char ** argv)
