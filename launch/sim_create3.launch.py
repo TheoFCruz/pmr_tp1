@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node 
 
 def generate_launch_description():
     # arguments
@@ -14,7 +15,8 @@ def generate_launch_description():
     gazebo_pkg = FindPackageShare('ros_gz_sim')
 
     # filepaths
-    world_path = PathJoinSubstitution([ tangent_bug_pkg, 'worlds', world_name])
+    world_path = PathJoinSubstitution([tangent_bug_pkg, 'worlds', world_name])
+    rviz_config_path = PathJoinSubstitution([tangent_bug_pkg, 'config', 'config.rviz'])
 
     # Start gazebo and spawn robot
     gazebo = IncludeLaunchDescription(
@@ -33,6 +35,15 @@ def generate_launch_description():
         )
     )
 
+    # Inicializando o RViz2 como um Nó
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', rviz_config_path] # O argumento '-d' indica o caminho do config
+    )
+
     ld = LaunchDescription()
 
     # Arguments
@@ -41,5 +52,6 @@ def generate_launch_description():
     # Nodes and launches
     ld.add_action(gazebo)
     ld.add_action(spawn)
+    ld.add_action(rviz)
 
     return ld

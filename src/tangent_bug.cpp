@@ -99,6 +99,8 @@ private:
     robot_pos.x() = msg->pose.pose.position.x;
     robot_pos.y() = msg->pose.pose.position.y;
 
+    std::cout << robot_pos << '\n' << std::endl;
+
     // get quaternion and extract yaw
     double x = msg->pose.pose.orientation.x;
     double y = msg->pose.pose.orientation.y;
@@ -160,24 +162,25 @@ private:
       case State::MOTION_TO_GOAL:
         sendVelocity((result_point - robot_pos).normalized()*SPEED);
 
-        if (result_cost > last_heuristic + 0.05)
+        d_followed = (goal - result_point).norm();
+        if (d_followed < d_reach)
+        {
+          d_reach = d_followed;
+          last_heuristic = result_cost;
+        }
+        else 
         {
           // found local minimum
           RCLCPP_INFO(this->get_logger(), "Found local minimum, switching to boundary following mode.");
           current_state = State::BOUNDARY_FOLLOWING;
-          d_reach = last_heuristic;
-          d_followed = result_cost;
 
           // determine optimal boundary direction
           Eigen::Vector2d to_obstacle = closest_point - robot_pos;
           Eigen::Vector2d tangent_ccw(-to_obstacle.y(), to_obstacle.x());
-          Eigen::Vector2d to_best_point = result_point - robot_pos;
+          Eigen::Vector2d robot_x_axis = {cos(robot_yaw), sin(robot_yaw)};
 
-          if (tangent_ccw.dot(to_best_point) >= 0) {
-            boundary_direction = 1;
-          } else {
-            boundary_direction = -1;
-          }
+          if (tangent_ccw.dot(robot_x_axis) >= 0) boundary_direction = 1;
+          else boundary_direction = -1;
 
           // start checking for unreachable goal
           if (!check_unreachable)
@@ -186,11 +189,8 @@ private:
             check_unreachable = true;
             out_of_min_dist = false;
           }
-
-        } else {
-          last_heuristic = result_cost;
         }
-        break;
+      break;
 
       case State::BOUNDARY_FOLLOWING:
         {
@@ -229,16 +229,17 @@ private:
           sendVelocity(boundary_vel);
 
           // check leave condition
-          if (result_cost < d_reach)
+          if (d_followed < d_reach)
           {
             RCLCPP_INFO(this->get_logger(), "Leave condition met! Returning to Motion-to-Goal.");
             current_state = State::MOTION_TO_GOAL;
             last_heuristic = result_cost; 
+            d_reach = d_followed;
           }
           else
-        {
+          {
             // update d_followed
-            d_followed = result_cost;
+            d_followed = (goal - result_point).norm();
           }
           break;
         }
