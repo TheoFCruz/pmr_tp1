@@ -123,6 +123,13 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received goal: (%.2lf, %.2lf)", msg->x, msg->y);
     goal = Eigen::Vector2d(msg->x, msg->y);
     goal_received = true;
+
+    // reset state machine for the new goal
+    current_state = State::MOTION_TO_GOAL;
+    boundary_direction = 1;
+    last_heuristic = 1e9;
+    d_reach = 1e9;
+    d_followed = 1e9;
   }
 
   void controlLoop()
@@ -142,20 +149,76 @@ private:
     std::vector<Eigen::Vector2d> discontinuities = getDiscontinuities();
 
     // calculate the heuristic to determine the best discontinuity point
-    Eigen::Vector2d disc_point = calculateHeuristic(discontinuities);
-    sendVelocity((disc_point - robot_pos).normalized()*SPEED);
+    HeuristicResult res = calculateHeuristic(discontinuities);
+    Eigen::Vector2d result_point = res.point;
+    double result_cost = res.cost;
 
-    // compare d_reach to d_followed
-    //   if d_reach <= d_followed, store it as d_followed and follow behavior 1
-    //   if d_reach > d_followed, follow behavior 2
-    // behavior 1 (move to goal):
-    //   send velocity towards best discontinuity point
-    // behavior 2 (boundary follow):
-    //   send velocity towards the next discontinuity point 
+    switch (current_state) {
 
-    // NOTE: before sending the velocity it should be checked if the robot 
-    // is to close to an obstacle and avoid a collision. I imagine removing the
-    // velocity component normal to the obstacle might be enough.
+      case State::MOTION_TO_GOAL:
+        sendVelocity((result_point - robot_pos).normalized()*SPEED);
+
+        if (result_cost > last_heuristic + 0.01)
+        {
+          // found local minimum
+          RCLCPP_INFO(this->get_logger(), "Found local minimum, switching to boundary following mode.");
+          current_state = State::BOUNDARY_FOLLOWING;
+          d_reach = last_heuristic;
+          d_followed = result_cost;
+
+          // determine optimal boundary direction
+          Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+          Eigen::Vector2d tangent_ccw(-to_obstacle.y(), to_obstacle.x());
+          Eigen::Vector2d to_best_point = result_point - robot_pos;
+
+          if (tangent_ccw.dot(to_best_point) >= 0) {
+            boundary_direction = 1;
+          } else {
+            boundary_direction = -1;
+          }
+        } else {
+          last_heuristic = result_cost;
+        }
+        break;
+
+      case State::BOUNDARY_FOLLOWING:
+      {
+        if (laser_points.empty()) break;
+
+        // calculate direction for wall-following
+        Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+        double dist = to_obstacle.norm();
+
+        // tangent direction based on chosen boundary direction
+        Eigen::Vector2d tangent(-to_obstacle.y(), to_obstacle.x());
+        tangent.normalize();
+
+        // correct boundary direction
+        tangent = boundary_direction*tangent;
+
+        // distance correction to maintain safe radius
+        double dist_error = dist - SAFE_RADIUS;
+        Eigen::Vector2d correction = to_obstacle.normalized() * dist_error * 2.0;
+
+        // final boundary following velocity
+        Eigen::Vector2d boundary_vel = (tangent + correction).normalized() * SPEED;
+        sendVelocity(boundary_vel);
+
+        // check leave condition
+        if (result_cost < d_reach)
+        {
+          RCLCPP_INFO(this->get_logger(), "Leave condition met! Returning to Motion-to-Goal.");
+          current_state = State::MOTION_TO_GOAL;
+          last_heuristic = result_cost; 
+        }
+        else
+        {
+          // update d_followed
+          d_followed = result_cost;
+        }
+        break;
+      }
+    }
   }
 
   // ----------------- Utility Functions ----------------------
@@ -209,11 +272,9 @@ private:
     if (range > SAFE_RADIUS) return desired_vel;
 
     // return if velocity isn't going towards obstacle
-    RCLCPP_INFO(this->get_logger(), "Teste1");
     if (desired_vel.dot(closest_point - robot_pos) <= 0) return desired_vel;
 
     // remove normal component
-    RCLCPP_INFO(this->get_logger(), "Too close to the obstacle, setting safe velocity");
     Eigen::Vector2d n = (closest_point - robot_pos).normalized();
     double projection = desired_vel.dot(n);
     Eigen::Vector2d result_vel = (desired_vel - projection*n).normalized()*SPEED;
@@ -248,9 +309,14 @@ private:
     return discontinuities;
   }
 
-  Eigen::Vector2d calculateHeuristic(std::vector<Eigen::Vector2d> &discontinuities)
+  struct HeuristicResult {
+    Eigen::Vector2d point;
+    double cost;
+  };
+
+  HeuristicResult calculateHeuristic(std::vector<Eigen::Vector2d> &discontinuities)
   {
-    if (discontinuities.empty()) return goal;
+    if (discontinuities.empty()) return {goal, (goal - robot_pos).norm()};
 
     Eigen::Vector2d best = discontinuities[0];
     double min_cost = 1000;
@@ -266,8 +332,14 @@ private:
       }
     }
 
-    return best;
+    return {best, min_cost};
   }
+  
+  // states
+  enum class State {
+    MOTION_TO_GOAL,
+    BOUNDARY_FOLLOWING
+  };
 
   // --------------------- Variables --------------------------
   
@@ -285,6 +357,13 @@ private:
   Eigen::Vector2d goal;
   Eigen::Vector2d robot_pos;
   double          robot_yaw;
+
+  // state machine variables
+  State   current_state = State::MOTION_TO_GOAL;
+  int     boundary_direction = 1;
+  double  d_reach;
+  double  d_followed;
+  double  last_heuristic;
 
   // flags
   bool goal_received = false;
