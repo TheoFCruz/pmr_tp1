@@ -160,11 +160,7 @@ class TangentBug : public rclcpp::Node
           sendVelocity((result_point - robot_pos).normalized()*SPEED);
 
           d_followed = (goal - result_point).norm();
-          if (d_followed < d_reach)
-          {
-            d_reach = d_followed;
-          }
-          else if (d_followed > d_reach + HYSTERESIS)
+          if (d_followed > d_reach + HYSTERESIS)
           {
             // local minimum detected
             RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
@@ -180,6 +176,10 @@ class TangentBug : public rclcpp::Node
 
             // change state
             current_state = State::BOUNDARY_FOLLOWING;
+          }
+          else
+          {
+            d_reach = d_followed;
           }
           break;
 
@@ -198,10 +198,8 @@ class TangentBug : public rclcpp::Node
               }
             }
 
-            // In boundary following, d_followed is the minimum distance from 
-            // the sensed obstacle boundary to the goal
-            Eigen::Vector2d M = getMPoint();
-            d_followed = (goal - M).norm();
+            // get d_followed
+            d_followed = (goal - disc).norm();
 
             // follow it
             sendVelocity((disc - robot_pos).normalized()*SPEED);
@@ -214,8 +212,7 @@ class TangentBug : public rclcpp::Node
             {
               RCLCPP_INFO(this->get_logger(), "Condition met. Going back to motion to goal.");
               current_state = State::MOTION_TO_GOAL;
-              d_reach = 1e9;
-              d_followed = 1e9;
+              d_reach = d_followed;
             }
           }
           break;
