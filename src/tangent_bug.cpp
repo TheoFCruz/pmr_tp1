@@ -126,10 +126,10 @@ class TangentBug : public rclcpp::Node
 
       // reset state machine for the new goal
       current_state = State::MOTION_TO_GOAL;
-      boundary_direction = 1;
       last_heuristic = {1e9, 1e9};
       d_reach = 1e9;
       d_followed = 1e9;
+      check_unreachable = false;
     }
 
     void controlLoop()
@@ -166,10 +166,10 @@ class TangentBug : public rclcpp::Node
             RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
 
             // get M point
-            Eigen::Vector2d M = getMPoint();
+            M_point = getMPoint();
 
             // set d_reach to d(M, goal)
-            d_reach = (goal - M).norm();
+            d_reach = (goal - M_point).norm();
 
             // Initialize last_heuristic for continuity
             last_heuristic = result_point;
@@ -213,6 +213,25 @@ class TangentBug : public rclcpp::Node
               RCLCPP_INFO(this->get_logger(), "Condition met. Going back to motion to goal.");
               current_state = State::MOTION_TO_GOAL;
               d_reach = d_followed;
+              check_unreachable = false;
+            }
+
+            // check for unreachable goal
+            Eigen::Vector2d current_best = getMPoint();
+            if (check_unreachable)
+            {
+              if ((current_best - M_point).norm() < GOAL_UNREACHABLE_MIN)
+              {
+                RCLCPP_INFO(this->get_logger(), "Made a full turn. Goal is unreachable");
+                sendVelocity(Eigen::Vector2d::Zero());
+                current_state = State::MOTION_TO_GOAL;
+                goal_received = false;
+              }
+            }
+            else if ((current_best - M_point).norm() > GOAL_UNREACHABLE_TH)
+            {
+              RCLCPP_INFO(this->get_logger(), "Checking for unreachable goal.");
+              check_unreachable = true;
             }
           }
           break;
@@ -375,23 +394,24 @@ class TangentBug : public rclcpp::Node
     Eigen::Vector2d goal;
     Eigen::Vector2d robot_pos;
     double          robot_yaw;
-    bool goal_received = false;
+    bool            goal_received = false;
 
     // state machine variables
-    State   current_state = State::MOTION_TO_GOAL;
-    int     boundary_direction = 1;
-    double  d_reach;
-    double  d_followed;
     Eigen::Vector2d  last_heuristic;
+    Eigen::Vector2d  M_point;
+    State            current_state = State::MOTION_TO_GOAL;
+    double           d_reach;
+    double           d_followed;
+    bool             check_unreachable = false;
 
     // consts
     const double SPEED = 0.5;
-    const double SAFE_RADIUS = 0.6;
+    const double SAFE_RADIUS = 0.5;
     const double D = 0.05;
     const double TOLERANCE = 0.05;
-    const double HYSTERESIS = 0.3;
-    const double GOAL_UNREACHABLE_TH= 0.3;
-    const double GOAL_UNREACHABLE_MIN_DIST= 0.5;
+    const double HYSTERESIS = 0.1;
+    const double GOAL_UNREACHABLE_TH= 0.5;
+    const double GOAL_UNREACHABLE_MIN= 0.05;
 };
 
 int main(int argc, char ** argv)
