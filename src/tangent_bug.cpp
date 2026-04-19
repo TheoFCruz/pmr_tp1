@@ -127,8 +127,8 @@ class TangentBug : public rclcpp::Node
       // reset state machine for the new goal
       current_state = State::MOTION_TO_GOAL;
       last_heuristic = {1e9, 1e9};
-      d_reach = 1e9;
       d_followed = 1e9;
+      d_reach = 1e9;
       check_unreachable = false;
     }
 
@@ -149,7 +149,7 @@ class TangentBug : public rclcpp::Node
           if (isGoalClear())
           {
             double dist_to_goal = (goal - robot_pos).norm();
-            if (dist_to_goal < d_reach) d_reach = dist_to_goal;
+            if (dist_to_goal < d_followed) d_followed = dist_to_goal;
 
             Eigen::Vector2d vel = goal - robot_pos;
             vel = vel.normalized() * SPEED;
@@ -159,8 +159,8 @@ class TangentBug : public rclcpp::Node
 
           sendVelocity((result_point - robot_pos).normalized()*SPEED);
 
-          d_followed = (goal - result_point).norm();
-          if (d_followed > d_reach + HYSTERESIS)
+          d_reach = (goal - result_point).norm();
+          if (d_reach > d_followed + HYSTERESIS)
           {
             // local minimum detected
             RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
@@ -168,8 +168,8 @@ class TangentBug : public rclcpp::Node
             // get M point
             M_point = getMPoint();
 
-            // set d_reach to d(M, goal)
-            d_reach = (goal - M_point).norm();
+            // set d_followed to d(M, goal)
+            d_followed = (goal - M_point).norm();
 
             // Initialize last_heuristic for continuity
             last_heuristic = result_point;
@@ -179,7 +179,7 @@ class TangentBug : public rclcpp::Node
           }
           else
           {
-            d_reach = d_followed;
+            d_followed = d_reach;
           }
           break;
 
@@ -198,8 +198,8 @@ class TangentBug : public rclcpp::Node
               }
             }
 
-            // get d_followed
-            d_followed = (goal - disc).norm();
+            // get d_reach
+            d_reach = (goal - disc).norm();
 
             // follow it
             sendVelocity((disc - robot_pos).normalized()*SPEED);
@@ -207,13 +207,14 @@ class TangentBug : public rclcpp::Node
             // update last heuristic
             last_heuristic = disc;
 
-            // check if d_followed < d_reach - HYSTERESIS
-            if (d_followed < d_reach - HYSTERESIS)
+            // check if d_reach < d_followed - HYSTERESIS
+            if (d_reach < d_followed - HYSTERESIS)
             {
               RCLCPP_INFO(this->get_logger(), "Condition met. Going back to motion to goal.");
               current_state = State::MOTION_TO_GOAL;
-              d_reach = d_followed;
+              d_followed = d_reach;
               check_unreachable = false;
+              break;
             }
 
             // check for unreachable goal
@@ -400,13 +401,13 @@ class TangentBug : public rclcpp::Node
     Eigen::Vector2d  last_heuristic;
     Eigen::Vector2d  M_point;
     State            current_state = State::MOTION_TO_GOAL;
-    double           d_reach;
     double           d_followed;
+    double           d_reach;
     bool             check_unreachable = false;
 
     // consts
     const double SPEED = 0.5;
-    const double SAFE_RADIUS = 0.5;
+    const double SAFE_RADIUS = 0.6;
     const double D = 0.05;
     const double TOLERANCE = 0.05;
     const double HYSTERESIS = 0.1;
