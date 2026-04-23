@@ -68,12 +68,18 @@ private:
     rclcpp::Time t_current = this->now();
     double t = (t_current - t_start).seconds();
 
+    // calculate tracking point P
+    Eigen::Vector2d tracking_pos;
+    tracking_pos.x() = robot_pos.x() + D * std::cos(robot_yaw);
+    tracking_pos.y() = robot_pos.y() + D * std::sin(robot_yaw);
+
     // get position error
-    Eigen::Vector2d error = getLamniscate(t) - robot_pos;
+    Eigen::Vector2d error = getLamniscate(t) - tracking_pos;
 
     // estimate feedforward velocity
-    Eigen::Vector2d d_pos = (getLamniscate(t + (double)LOOP_DT_MS/1000) - getLamniscate(t - (double)LOOP_DT_MS/1000)); 
-    Eigen::Vector2d ff_vel = 1000*d_pos/(2*LOOP_DT_MS);
+    double dt = (double)LOOP_DT_MS / 1000.0;
+    Eigen::Vector2d d_pos = getLamniscate(t + dt) - getLamniscate(t - dt); 
+    Eigen::Vector2d ff_vel = d_pos / (2.0 * dt);
 
     // get result velocity command
     Eigen::Vector2d result_vel = VEL_GAIN * error + ff_vel;
