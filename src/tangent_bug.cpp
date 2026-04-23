@@ -218,6 +218,7 @@ class TangentBug : public rclcpp::Node
             }
 
             // check for unreachable goal
+            // TODO: Add a more robust check to account for sensor noise 
             Eigen::Vector2d current_best = getMPoint();
             if (check_unreachable)
             {
@@ -285,22 +286,33 @@ class TangentBug : public rclcpp::Node
 
     Eigen::Vector2d getSafeVelocity(Eigen::Vector2d desired_vel)
     {
-      // return if no obstacles
       if (laser_points.empty()) return desired_vel; 
 
-      // return if not too close
       double range = (closest_point - robot_pos).norm();
-      if (range > SAFE_RADIUS) return desired_vel;
-
-      // return if velocity isn't going towards obstacle
-      if (desired_vel.dot(closest_point - robot_pos) <= 0) return desired_vel;
-
-      // remove normal component
       Eigen::Vector2d n = (closest_point - robot_pos).normalized();
       double projection = desired_vel.dot(n);
-      Eigen::Vector2d result_vel = (desired_vel - projection*n).normalized()*SPEED;
 
-      return result_vel;
+      // Radial correction velocity (P-controller)
+      // If range < SAFE_RADIUS, this is negative (away from obstacle)
+      // If range > SAFE_RADIUS, this is positive (towards obstacle)
+      double dist_gain = 0.5; 
+      double v_radial_corr = - dist_gain * (SAFE_RADIUS - range);
+      
+      // We take the minimum (most 'away') of the desired and correction components.
+      // This ensures we always move away if too close, and never move in faster than
+      // the soft boundary allows when approaching the safe radius.
+      double v_radial = std::min(projection, v_radial_corr);
+      
+      // Tangent component of the desired velocity
+      Eigen::Vector2d tangent_vel = desired_vel - projection * n;
+      Eigen::Vector2d result_vel = tangent_vel + v_radial * n;
+
+      // Handle the case where the resulting velocity is nearly zero
+      if (result_vel.norm() < 1e-6) {
+        result_vel = Eigen::Vector2d(-n.y(), n.x());
+      }
+
+      return result_vel.normalized() * SPEED;
     }
 
     std::vector<Eigen::Vector2d> getDiscontinuities()
@@ -407,7 +419,7 @@ class TangentBug : public rclcpp::Node
 
     // consts
     const double SPEED = 0.5;
-    const double SAFE_RADIUS = 0.6;
+    const double SAFE_RADIUS = 0.4;
     const double D = 0.05;
     const double TOLERANCE = 0.05;
     const double HYSTERESIS = 0.1;
