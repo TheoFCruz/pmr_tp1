@@ -59,7 +59,25 @@ private:
 
   void controlLoop()
   {
-    // TODO: Implement parametric curve control logic
+    // save start time if loop in first iteration
+    if (is_first_iteration) {
+      t_start = this->now();
+      is_first_iteration = false;
+    }
+
+    rclcpp::Time t_current = this->now();
+    double t = (t_current - t_start).seconds();
+
+    // get position error
+    Eigen::Vector2d error = getLamniscate(t) - robot_pos;
+
+    // estimate feedforward velocity
+    Eigen::Vector2d d_pos = (getLamniscate(t + (double)LOOP_DT_MS/1000) - getLamniscate(t - (double)LOOP_DT_MS/1000)); 
+    Eigen::Vector2d ff_vel = 1000*d_pos/(2*LOOP_DT_MS);
+
+    // get result velocity command
+    Eigen::Vector2d result_vel = VEL_GAIN * error + ff_vel;
+    sendVelocity(result_vel);
   }
 
   // ------------------ Utility Functions ---------------------
@@ -83,11 +101,11 @@ private:
 
   Eigen::Vector2d getLamniscate(double t)
   {
-    double a = 1.0;
+    double a = 3.0;
 
     Eigen::Vector2d result;
-    result.x() = a*sqrt(2)*cos(t)/(sin(t)*sin(t) + 1);
-    result.y() = a*sqrt(2)*cos(t)*sin(t)/(sin(t)*sin(t) + 1);
+    result.x() = a*sqrt(2)*cos(0.2*t)/(sin(0.2*t)*sin(0.2*t) + 1);
+    result.y() = a*sqrt(2)*cos(0.2*t)*sin(0.2*t)/(sin(0.2*t)*sin(0.2*t) + 1);
 
     return result;
   }
@@ -103,8 +121,13 @@ private:
   Eigen::Vector2d robot_pos;
   double          robot_yaw;
 
+  // time tracking
+  rclcpp::Time t_start;
+  bool         is_first_iteration = true;
+
   // consts
   const double D = 0.05;
+  const double VEL_GAIN = 3.0;
   const int    LOOP_DT_MS = 100;
 };
 

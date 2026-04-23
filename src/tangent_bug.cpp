@@ -292,6 +292,8 @@ private:
     Eigen::Vector2d n = (closest_point - robot_pos).normalized();
     double projection = desired_vel.dot(n);
 
+    // HACK: AI black magic that must be revised
+    
     // Radial correction velocity (P-controller)
     // If range < SAFE_RADIUS, this is negative (away from obstacle)
     // If range > SAFE_RADIUS, this is positive (towards obstacle)
