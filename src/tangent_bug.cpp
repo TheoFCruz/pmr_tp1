@@ -173,7 +173,7 @@ private:
           RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
 
           // get M point
-          M_point = getMPoint();
+          M_point = getClosestObstToGoal();
 
           // set d_followed to d(M, goal)
           d_followed = (goal - M_point).norm();
@@ -184,7 +184,7 @@ private:
           // change state
           current_state = State::BOUNDARY_FOLLOWING;
         }
-        else
+        else if (d_reach < d_followed - HYSTERESIS)
         {
           d_followed = d_reach;
         }
@@ -208,8 +208,9 @@ private:
           // get d_reach
           d_reach = (goal - disc).norm();
 
-          // follow it
-          sendVelocity((disc - robot_pos).normalized()*SPEED);
+          // get d_reach
+          Eigen::Vector2d current_best = getClosestObstToGoal();
+          d_reach = (goal - current_best).norm();
 
           // update last heuristic
           last_heuristic = disc;
@@ -226,7 +227,6 @@ private:
 
           // check for unreachable goal
           // TODO: Add a more robust check to account for sensor noise 
-          Eigen::Vector2d current_best = getMPoint();
           if (check_unreachable)
           {
             if ((current_best - M_point).norm() < GOAL_UNREACHABLE_MIN)
@@ -392,7 +392,7 @@ private:
     discontinuities_pub->publish(marker);
   }
 
-  Eigen::Vector2d getMPoint()
+  Eigen::Vector2d getClosestObstToGoal()
   {
     if (laser_points.empty()) return robot_pos;
 
