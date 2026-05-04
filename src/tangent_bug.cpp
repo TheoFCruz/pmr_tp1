@@ -424,7 +424,7 @@ private:
   const double SAFE_RADIUS = 0.4;
   const double D = 0.05;
   const double TOLERANCE = 0.05;
-  const double HYSTERESIS = 0.1;
+  const double HYSTERESIS = 0.05;
   const double GOAL_UNREACHABLE_TH= 0.5;
   const double GOAL_UNREACHABLE_MIN= 0.05;
 };
