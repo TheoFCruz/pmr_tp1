@@ -85,7 +85,6 @@ private:
 
       // transform the points to the map using the robot pose
       new_point = r_yaw * new_point + robot_pos;
-
       laser_points.push_back(new_point);
 
       if (r < min_dist)
@@ -132,10 +131,8 @@ private:
 
     // reset state machine for the new goal
     current_state = State::MOTION_TO_GOAL;
-    last_heuristic = {1e9, 1e9};
     d_followed = 1e9;
     d_reach = 1e9;
-    check_unreachable = false;
   }
 
   void controlLoop()
@@ -166,8 +163,7 @@ private:
           } 
 
           Eigen::Vector2d desired_vel = (result_point - robot_pos).normalized()*SPEED;
-          Eigen::Vector2d result_vel = getSafeVelocity(desired_vel);
-          sendVelocity(result_vel);
+          sendVelocity(desired_vel);
 
           d_reach = (goal - result_point).norm();
           if (d_reach > d_followed + HYSTERESIS)
@@ -177,12 +173,12 @@ private:
 
             // get M point
             M_point = getClosestObstToGoal();
+            visible_M_point = true;
 
             // set d_followed to d(M, goal)
             d_followed = (goal - M_point).norm();
 
-            // Initialize last_heuristic for continuity
-            last_heuristic = result_point;
+            // define boundary following direction
             Eigen::Vector2d to_obstacle = closest_point - robot_pos;
             Eigen::Vector2d tangent_ccw = {to_obstacle.y(), -to_obstacle.x()};
             Eigen::Vector2d heading = {cos(robot_yaw), sin(robot_yaw)};
@@ -202,22 +198,6 @@ private:
 
       case State::BOUNDARY_FOLLOWING:
         {
-          // // get discontinuity closest to the one it was following
-          // Eigen::Vector2d disc = result_point;
-          // double min_dist = 1e9;
-          // for (const auto& point : discontinuities)
-          // {
-          //   double dist = (point - last_heuristic).norm();
-          //   if (dist < min_dist)
-          //   {
-          //     disc = point;
-          //     min_dist = dist;
-          //   }
-          // }
-          //
-          // // follow it
-          // sendVelocity((disc - robot_pos).normalized()*SPEED);
-
           Eigen::Vector2d to_obstacle = closest_point - robot_pos;
           Eigen::Vector2d result_vel = {to_obstacle.y(), -to_obstacle.x()};
           result_vel = boundary_dir * result_vel.normalized();
@@ -232,21 +212,17 @@ private:
           Eigen::Vector2d current_best = getClosestObstToGoal();
           d_reach = (goal - current_best).norm();
 
-          // update last heuristic
-          // last_heuristic = disc;
-
           // check if d_reach < d_followed - HYSTERESIS
           if (d_reach < d_followed - HYSTERESIS)
           {
             RCLCPP_INFO(this->get_logger(), "Condition met. Going back to motion to goal.");
             current_state = State::MOTION_TO_GOAL;
             d_followed = d_reach;
-            check_unreachable = false;
             break;
           }
 
           // check for unreachable goal
-          if (check_unreachable)
+          if (!visible_M_point)
           {
             if ((current_best - M_point).norm() < GOAL_UNREACHABLE_MIN)
             {
@@ -259,7 +235,7 @@ private:
           else if ((current_best - M_point).norm() > GOAL_UNREACHABLE_TH)
           {
             RCLCPP_INFO(this->get_logger(), "Checking for unreachable goal.");
-            check_unreachable = true;
+            visible_M_point = false;
           }
         }
         break;
@@ -293,6 +269,8 @@ private:
 
   void sendVelocity(Eigen::Vector2d vel)
   {
+    vel = getSafeVelocity(vel);
+
     double v_x = vel.x();
     double v_y = vel.y();
 
@@ -477,17 +455,16 @@ private:
   bool            goal_received = false;
 
   // state machine variables
-  Eigen::Vector2d  last_heuristic;
   Eigen::Vector2d  M_point;
   State            current_state = State::MOTION_TO_GOAL;
   double           d_followed;
   double           d_reach;
-  bool             check_unreachable = false;
+  bool             visible_M_point;
   int              boundary_dir;
 
   // consts
   const double SPEED = 0.5;
-  const double SAFE_RADIUS = 0.4;
+  const double SAFE_RADIUS = 0.5;
   const double D = 0.05;
   const double DISC_THRESHOLD = 1.0;
   const double TOLERANCE = 0.05;
