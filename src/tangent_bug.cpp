@@ -152,68 +152,88 @@ private:
     switch (current_state) {
 
       case State::MOTION_TO_GOAL:
-        // if path to goal is clear, send direct velocity
-        if (isGoalClear())
         {
-          double dist_to_goal = (goal - robot_pos).norm();
-          if (dist_to_goal < d_followed) d_followed = dist_to_goal;
+          // if path to goal is clear, send direct velocity
+          if (isGoalClear())
+          {
+            double dist_to_goal = (goal - robot_pos).norm();
+            if (dist_to_goal < d_followed) d_followed = dist_to_goal;
 
-          Eigen::Vector2d vel = goal - robot_pos;
-          vel = vel.normalized() * SPEED;
-          sendVelocity(vel);
-          return;
-        } 
+            Eigen::Vector2d vel = goal - robot_pos;
+            vel = vel.normalized() * SPEED;
+            sendVelocity(vel);
+            return;
+          } 
 
-        sendVelocity((result_point - robot_pos).normalized()*SPEED);
+          Eigen::Vector2d desired_vel = (result_point - robot_pos).normalized()*SPEED;
+          Eigen::Vector2d result_vel = getSafeVelocity(desired_vel);
+          sendVelocity(result_vel);
 
-        d_reach = (goal - result_point).norm();
-        if (d_reach > d_followed + HYSTERESIS)
-        {
-          // local minimum detected
-          RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
+          d_reach = (goal - result_point).norm();
+          if (d_reach > d_followed + HYSTERESIS)
+          {
+            // local minimum detected
+            RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
 
-          // get M point
-          M_point = getClosestObstToGoal();
+            // get M point
+            M_point = getClosestObstToGoal();
 
-          // set d_followed to d(M, goal)
-          d_followed = (goal - M_point).norm();
+            // set d_followed to d(M, goal)
+            d_followed = (goal - M_point).norm();
 
-          // Initialize last_heuristic for continuity
-          last_heuristic = result_point;
+            // Initialize last_heuristic for continuity
+            last_heuristic = result_point;
+            Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+            Eigen::Vector2d tangent_ccw = {to_obstacle.y(), -to_obstacle.x()};
+            Eigen::Vector2d heading = {cos(robot_yaw), sin(robot_yaw)};
 
-          // change state
-          current_state = State::BOUNDARY_FOLLOWING;
+            if (heading.dot(tangent_ccw) > 0) boundary_dir = 1;
+            else boundary_dir = -1;
+
+            // change state
+            current_state = State::BOUNDARY_FOLLOWING;
+          }
+          else if (d_reach < d_followed - HYSTERESIS)
+          {
+            d_followed = d_reach;
+          }
+          break;
         }
-        else if (d_reach < d_followed - HYSTERESIS)
-        {
-          d_followed = d_reach;
-        }
-        break;
 
       case State::BOUNDARY_FOLLOWING:
         {
-          // get discontinuity closest to the one it was following
-          Eigen::Vector2d disc = result_point;
-          double min_dist = 1e9;
-          for (const auto& point : discontinuities)
-          {
-            double dist = (point - last_heuristic).norm();
-            if (dist < min_dist)
-            {
-              disc = point;
-              min_dist = dist;
-            }
-          }
+          // // get discontinuity closest to the one it was following
+          // Eigen::Vector2d disc = result_point;
+          // double min_dist = 1e9;
+          // for (const auto& point : discontinuities)
+          // {
+          //   double dist = (point - last_heuristic).norm();
+          //   if (dist < min_dist)
+          //   {
+          //     disc = point;
+          //     min_dist = dist;
+          //   }
+          // }
+          //
+          // // follow it
+          // sendVelocity((disc - robot_pos).normalized()*SPEED);
 
-          // follow it
-          sendVelocity((disc - robot_pos).normalized()*SPEED);
+          Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+          Eigen::Vector2d result_vel = {to_obstacle.y(), -to_obstacle.x()};
+          result_vel = boundary_dir * result_vel.normalized();
+
+          Eigen::Vector2d n = to_obstacle.normalized();
+          Eigen::Vector2d correction = - 1.0 * (SAFE_RADIUS - to_obstacle.norm()) * n;
+
+          result_vel = (result_vel + correction).normalized()*SPEED;
+          sendVelocity(result_vel);
 
           // get d_reach
           Eigen::Vector2d current_best = getClosestObstToGoal();
           d_reach = (goal - current_best).norm();
 
           // update last heuristic
-          last_heuristic = disc;
+          // last_heuristic = disc;
 
           // check if d_reach < d_followed - HYSTERESIS
           if (d_reach < d_followed - HYSTERESIS)
@@ -226,7 +246,6 @@ private:
           }
 
           // check for unreachable goal
-          // TODO: Add a more robust check to account for sensor noise 
           if (check_unreachable)
           {
             if ((current_best - M_point).norm() < GOAL_UNREACHABLE_MIN)
@@ -274,8 +293,6 @@ private:
 
   void sendVelocity(Eigen::Vector2d vel)
   {
-    vel = getSafeVelocity(vel);
-
     double v_x = vel.x();
     double v_y = vel.y();
 
@@ -466,6 +483,7 @@ private:
   double           d_followed;
   double           d_reach;
   bool             check_unreachable = false;
+  int              boundary_dir;
 
   // consts
   const double SPEED = 0.5;
