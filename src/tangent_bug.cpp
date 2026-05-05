@@ -20,25 +20,25 @@ public:
   {
     // publishes and subscribers
     laser_sub = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "/scan",
+      "scan",
       rclcpp::SensorDataQoS(),
       std::bind(&TangentBug::laserCallback, this, std::placeholders::_1)
     );
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom",
+      "odom",
       10,
       std::bind(&TangentBug::odomCallback, this, std::placeholders::_1)
     );
 
     goal_sub = this->create_subscription<geometry_msgs::msg::Point>(
-      "/goal",
+      "goal",
       10,
       std::bind(&TangentBug::goalCallback, this, std::placeholders::_1)
     );
 
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "cmd_vel",
       10
     );
 
@@ -122,7 +122,7 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received goal: (%.2lf, %.2lf)", msg->x, msg->y);
     goal = Eigen::Vector2d(msg->x, msg->y);
-    visualizer.publishPoint("/goal_marker", goal, "map", 0, 0.0, 1.0, 0.0);
+    visualizer.publishPoint("goal_marker", goal, "map", 0, 0.0, 1.0, 0.0);
     goal_received = true;
 
     // reset state machine for the new goal
@@ -137,7 +137,7 @@ private:
 
     // get discontinuity points 
     std::vector<Eigen::Vector2d> discontinuities = getDiscontinuities();
-    visualizer.publishPointsArray("/discontinuities", discontinuities, "map");
+    visualizer.publishPointsArray("discontinuities", discontinuities, "map");
 
     // calculate the heuristic to determine the best discontinuity point
     Eigen::Vector2d result_point = calculateHeuristic(discontinuities);

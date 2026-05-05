@@ -55,11 +55,23 @@ ament_target_dependencies(potential_function
   Eigen3
 )
 
+add_executable(path_with_potential
+  src/path_with_potential.cpp
+)
+ament_target_dependencies(path_with_potential
+  rclcpp
+  sensor_msgs
+  geometry_msgs
+  nav_msgs
+  Eigen3
+)
+
 # Install
 install(TARGETS 
   tangent_bug
   parametric_curve
   potential_function
+  path_with_potential
   DESTINATION lib/${PROJECT_NAME}
 )
 

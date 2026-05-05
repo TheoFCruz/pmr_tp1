@@ -6,29 +6,52 @@
 
 #include <eigen3/Eigen/Dense>
 
+#include <cmath>
+#include <map>
+#include <string>
+#include <vector>
+
 class PathWithPotential : public rclcpp::Node
 {
 public:
   PathWithPotential()
   : Node("path_with_potential")
   {
+    // node parameters
+    robot_id = this->declare_parameter<int>("robot_id", 1);
+    num_robots = this->declare_parameter<int>("num_robots", 1);
+
+    if (robot_id < 1)
+    {
+      RCLCPP_WARN(this->get_logger(), "Invalid robot_id %d. Using robot_id=1.", robot_id);
+      robot_id = 1;
+    }
+
+    if (num_robots < 1)
+    {
+      RCLCPP_WARN(this->get_logger(), "Invalid num_robots %d. Using num_robots=1.", num_robots);
+      num_robots = 1;
+    }
+
     // publishers and subscribers
     laser_sub = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "/scan",
+      "scan",
       rclcpp::SensorDataQoS(),
       std::bind(&PathWithPotential::laserCallback, this, std::placeholders::_1)
     );
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom",
+      "odom",
       10,
       std::bind(&PathWithPotential::odomCallback, this, std::placeholders::_1)
     );
 
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "cmd_vel",
       10
     );
+
+    createOtherRobotSubscriptions();
 
     // timer for the control loop
     control_timer = this->create_wall_timer(
@@ -37,6 +60,13 @@ public:
     );
 
     RCLCPP_INFO(this->get_logger(), "Path with potential node started.");
+    RCLCPP_INFO(
+      this->get_logger(),
+      "robot_id=%d num_robots=%d namespace=%s",
+      robot_id,
+      num_robots,
+      this->get_namespace()
+    );
   }
 
 private:
@@ -99,12 +129,50 @@ private:
     robot_yaw = std::atan2(siny_cosp, cosy_cosp);
   }
 
+  void otherOdomCallback(
+    int other_robot_id,
+    const nav_msgs::msg::Odometry::SharedPtr msg)
+  {
+    other_robot_positions[other_robot_id] = Eigen::Vector2d(
+      msg->pose.pose.position.x,
+      msg->pose.pose.position.y
+    );
+  }
+
   void controlLoop()
   {
     // TODO: implement control logic
   }
 
   // ------------------ Utility Functions ---------------------
+
+  void createOtherRobotSubscriptions()
+  {
+    for (int id = 1; id <= num_robots; ++id)
+    {
+      if (id == robot_id) continue;
+
+      std::string topic = "/robot_" + std::to_string(id) + "/odom";
+
+      other_odom_subs.push_back(
+        this->create_subscription<nav_msgs::msg::Odometry>(
+          topic,
+          10,
+          [this, id](const nav_msgs::msg::Odometry::SharedPtr msg)
+          {
+            otherOdomCallback(id, msg);
+          }
+        )
+      );
+
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Subscribing to robot_%d odom on %s",
+        id,
+        topic.c_str()
+      );
+    }
+  }
 
   void sendVelocity(Eigen::Vector2d vel)
   {
@@ -127,6 +195,8 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr     odom_sub;
+  std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr>
+                                                                  other_odom_subs;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      cmd_vel_pub;
   rclcpp::TimerBase::SharedPtr                                 control_timer;
 
@@ -137,6 +207,11 @@ private:
   // robot pose
   Eigen::Vector2d robot_pos;
   double          robot_yaw;
+
+  // multi-robot
+  int robot_id;
+  int num_robots;
+  std::map<int, Eigen::Vector2d> other_robot_positions;
 
   // consts
   const double D = 0.05;
@@ -150,4 +225,3 @@ int main(int argc, char ** argv)
   rclcpp::shutdown();
   return 0;
 }
-
