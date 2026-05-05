@@ -42,7 +42,7 @@
       <update_rate>10.0</update_rate>
       <visualize>true</visualize>
       <always_on>true</always_on>
-      <topic>${'scan' if '$(arg namespace)' == '' else '$(arg namespace)/scan'}</topic>
+      <topic>$(arg namespace)/scan</topic>
       <gz_frame_id>lidar_link</gz_frame_id>
       <lidar>
         <scan>
@@ -65,9 +65,9 @@
   <!-- ground truth odometry -->
   <gazebo>
     <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
-      <odom_topic>${'odom' if '$(arg namespace)' == '' else '$(arg namespace)/odom'}</odom_topic>
+      <odom_topic>$(arg namespace)/odom</odom_topic>
       <odom_frame>odom</odom_frame>
-      <robot_base_frame>${'base_link' if '$(arg namespace)' == '' else '$(arg namespace)/base_link'}</robot_base_frame>
+      <robot_base_frame>$(arg namespace)/base_link</robot_base_frame>
       <tf_topic>/tf</tf_topic> 
     </plugin>
   </gazebo>

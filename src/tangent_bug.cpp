@@ -122,6 +122,7 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received goal: (%.2lf, %.2lf)", msg->x, msg->y);
     goal = Eigen::Vector2d(msg->x, msg->y);
+    visualizer.publishPoint("/goal_marker", goal, "map", 0, 0.0, 1.0, 0.0);
     goal_received = true;
 
     // reset state machine for the new goal
