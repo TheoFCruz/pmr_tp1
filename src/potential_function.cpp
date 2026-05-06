@@ -139,19 +139,15 @@ private:
     Eigen::Vector2d f_att = -grad_U_att;
 
     // Forca repulsiva
-    Eigen::Vector2d f_rep_total(0, 0);
-    
-    for (const auto& point : laser_points) {
-        Eigen::Vector2d q_obs_diff = robot_pos - point;
-        double dist = q_obs_diff.norm();
+    Eigen::Vector2d f_rep(0, 0);
+    double dist = (robot_pos - closest_point).norm();
 
-        if (dist <= Q_ESTRELA) {
-            double magnitude = ETA/2 * (1.0/dist - 1.0/Q_ESTRELA)*(1.0/dist - 1.0/Q_ESTRELA);
-            f_rep_total += magnitude * q_obs_diff.normalized();
-        }
+    if (dist < Q_ESTRELA) {
+        Eigen::Vector2d rep_dir = (robot_pos - closest_point).normalized();
+        f_rep = ETA * (1.0/dist - 1.0/Q_ESTRELA) * (1.0/(dist * dist)) * rep_dir;
     }
-
-    Eigen::Vector2d f_total = f_att + f_rep_total;
+    
+    Eigen::Vector2d f_total = f_att + f_rep;
     if (f_total.norm() > MAX_VEL) f_total = f_total.normalized() * MAX_VEL;
     sendVelocity(f_total);
   }
@@ -197,11 +193,11 @@ private:
   const int    LOOP_DT_MS = 100;
   const double TOLERANCE = 0.05;
   const double D = 0.05;
-  const double ZETA = 10;
-  const double ETA = 1.2;
+  const double ZETA = 12;
+  const double ETA = 1.3;
   const double MAX_VEL = 1; 
   const double D_ESTRELA = 1.5;
-  const double Q_ESTRELA = 1.2;
+  const double Q_ESTRELA = 1.4;
 
 };
 
