@@ -3,7 +3,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/point.hpp>
-#include <std_srvs/srv/set_bool.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include "pmr_tp1/visualizer.hpp"
 
@@ -32,14 +32,10 @@ public:
       10
     );
 
-    start_srv = this->create_service<std_srvs::srv::SetBool>(
+    start_sub = this->create_subscription<std_msgs::msg::Bool>(
       "/parametric_curve/start",
-      std::bind(
-        &ParametricCurve::startCallback,
-        this,
-        std::placeholders::_1,
-        std::placeholders::_2
-      )
+      10,
+      std::bind(&ParametricCurve::startCallback, this, std::placeholders::_1)
     );
 
     publishPath();
@@ -78,12 +74,6 @@ private:
   {
     if (!active) return;
 
-    // save start time if loop in first iteration
-    if (is_first_iteration) {
-      t_start = this->now();
-      is_first_iteration = false;
-    }
-
     rclcpp::Time t_current = this->now();
     double t = (t_current - t_start).seconds();
 
@@ -116,24 +106,20 @@ private:
     sendVelocity(result_vel);
   }
 
-  void startCallback(
-    const std_srvs::srv::SetBool::Request::SharedPtr request,
-    std_srvs::srv::SetBool::Response::SharedPtr response)
+  void startCallback(const std_msgs::msg::Bool::SharedPtr msg)
   {
-    active = request->data;
+    active = msg->data;
 
     if (active)
     {
-      is_first_iteration = true;
-      response->message = "Parametric curve started.";
+      t_start = this->now();
+      RCLCPP_INFO(this->get_logger(), "Parametric curve started.");
     }
     else
     {
       sendVelocity(Eigen::Vector2d::Zero());
-      response->message = "Parametric curve stopped.";
+      RCLCPP_INFO(this->get_logger(), "Parametric curve stopped.");
     }
-
-    response->success = true;
   }
 
   // ------------------ Utility Functions ---------------------
@@ -189,8 +175,8 @@ private:
   // --------------------- Variables --------------------------
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr     odom_sub;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr          start_sub;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      cmd_vel_pub;
-  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr           start_srv;
   rclcpp::TimerBase::SharedPtr                                 control_timer;
 
   Visualizer                                                    visualizer;
@@ -202,7 +188,6 @@ private:
 
   // time tracking
   rclcpp::Time t_start;
-  bool         is_first_iteration = true;
   bool         active = false;
 
   // consts

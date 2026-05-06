@@ -3,6 +3,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include "pmr_tp1/visualizer.hpp"
 
@@ -45,6 +46,12 @@ public:
       "odom",
       10,
       std::bind(&PathWithPotential::odomCallback, this, std::placeholders::_1)
+    );
+
+    start_sub = this->create_subscription<std_msgs::msg::Bool>(
+      "/path_with_potential/start",
+      10,
+      std::bind(&PathWithPotential::startCallback, this, std::placeholders::_1)
     );
 
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>(
@@ -145,8 +152,28 @@ private:
     other_robot_odom_received[index] = true;
   }
 
+  void startCallback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    active = msg->data;
+
+    if (active)
+    {
+      t_start = this->now();
+      RCLCPP_INFO(this->get_logger(), "Path with potential started.");
+    }
+    else
+    {
+      if (odom_received)
+      {
+        sendVelocity(Eigen::Vector2d::Zero());
+      }
+      RCLCPP_INFO(this->get_logger(), "Path with potential stopped.");
+    }
+  }
+
   void controlLoop()
   {
+    if (!active) return;
     if (!odom_received) return;
 
     Eigen::Vector2d trajectory_vel = calculateTrajectoryVelocity();
@@ -186,12 +213,6 @@ private:
 
   Eigen::Vector2d calculateTrajectoryVelocity()
   {
-    if (is_first_iteration)
-    {
-      t_start = this->now();
-      is_first_iteration = false;
-    }
-
     // reference time based on ID
     rclcpp::Time t_current = this->now();
     double t = (t_current - t_start).seconds();
@@ -251,19 +272,6 @@ private:
         (1.0 / dist - 1.0 / ROBOT_EFFECTIVE_RADIUS) *
         diff / (dist * dist * dist);
     }
-
-    if (repulsive_vel.norm() > 1e-6)
-    {
-      RCLCPP_INFO_THROTTLE(
-        this->get_logger(),
-        *this->get_clock(),
-        1000,
-        "Robot repulsion velocity: x=%.3f y=%.3f",
-        repulsive_vel.x(),
-        repulsive_vel.y()
-      );
-    }
-
     return repulsive_vel;
   }
 
@@ -323,6 +331,7 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr          laser_sub;       
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr              odom_sub;        
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                  start_sub;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr               cmd_vel_pub;     
   std::vector<rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr> other_odom_subs; 
   rclcpp::TimerBase::SharedPtr                                          control_timer;   
@@ -340,7 +349,7 @@ private:
 
   // trajectory tracking
   rclcpp::Time t_start;
-  bool         is_first_iteration = true;
+  bool         active = false;
 
   // multi-robot
   int robot_id;
@@ -350,14 +359,14 @@ private:
 
   // consts
   const double D = 0.05;
-  const double VEL_GAIN = 1.5;
+  const double VEL_GAIN = 2.0;
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
   const double A = 3.0;
   const double TRAJECTORY_FREQ = 0.1;
   const double T = 2.0 * PI / TRAJECTORY_FREQ;
   const double ROBOT_DELTA_T = 4.0;
-  const double ROBOT_EFFECTIVE_RADIUS = 0.8;
+  const double ROBOT_EFFECTIVE_RADIUS = 1.0;
   const double ROBOT_REPULSION_GAIN = 0.5;
 };
 
