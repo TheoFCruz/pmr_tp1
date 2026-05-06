@@ -1,21 +1,24 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <nav_msgs/msg/odometry.hpp>
-#include <nav_msgs/msg/path.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/point.hpp>
+#include <std_msgs/msg/bool.hpp>
+
+#include "pmr_tp1/visualizer.hpp"
 
 #include <eigen3/Eigen/Dense>
 
+#include <chrono>
 #include <cmath>
+#include <functional>
+#include <memory>
 #include <vector>
 
 class ParametricCurve : public rclcpp::Node
 {
 public:
-  ParametricCurve()
-  : Node("parametric_curve")
+  ParametricCurve() : Node("parametric_curve"), visualizer(this)
   {
     // publishers and subscribers
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -29,9 +32,10 @@ public:
       10
     );
 
-    path_pub = this->create_publisher<nav_msgs::msg::Path>(
-      "/parametric_curve/path",
-      rclcpp::QoS(1).transient_local().reliable()
+    start_sub = this->create_subscription<std_msgs::msg::Bool>(
+      "/parametric_curve/start",
+      10,
+      std::bind(&ParametricCurve::startCallback, this, std::placeholders::_1)
     );
 
     publishPath();
@@ -68,11 +72,7 @@ private:
 
   void controlLoop()
   {
-    // save start time if loop in first iteration
-    if (is_first_iteration) {
-      t_start = this->now();
-      is_first_iteration = false;
-    }
+    if (!active) return;
 
     rclcpp::Time t_current = this->now();
     double t = (t_current - t_start).seconds();
@@ -82,8 +82,19 @@ private:
     tracking_pos.x() = robot_pos.x() + D * std::cos(robot_yaw);
     tracking_pos.y() = robot_pos.y() + D * std::sin(robot_yaw);
 
+    Eigen::Vector2d followed_point = getLamniscate(t);
+    visualizer.publishPoint(
+      "/parametric_curve/followed_point",
+      followed_point,
+      "odom",
+      0,
+      0.0,
+      1.0,
+      1.0
+    );
+
     // get position error
-    Eigen::Vector2d error = getLamniscate(t) - tracking_pos;
+    Eigen::Vector2d error = followed_point - tracking_pos;
 
     // estimate feedforward velocity
     double dt = (double)LOOP_DT_MS / 1000.0;
@@ -95,17 +106,30 @@ private:
     sendVelocity(result_vel);
   }
 
+  void startCallback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    active = msg->data;
+
+    if (active)
+    {
+      t_start = this->now();
+      RCLCPP_INFO(this->get_logger(), "Parametric curve started.");
+    }
+    else
+    {
+      sendVelocity(Eigen::Vector2d::Zero());
+      RCLCPP_INFO(this->get_logger(), "Parametric curve stopped.");
+    }
+  }
+
   // ------------------ Utility Functions ---------------------
 
   void publishPath() {
-    nav_msgs::msg::Path path;
-    path.header.stamp = this->now();
-    path.header.frame_id = "odom";
-
     double dt = (double)LOOP_DT_MS / 1000.0;
     int num_samples = (int)std::ceil(T / dt);
 
-    path.poses.reserve(num_samples + 1);
+    std::vector<Eigen::Vector2d> path_points;
+    path_points.reserve(num_samples + 1);
 
     for (int i = 0; i <= num_samples; ++i) {
       double t = i * dt;
@@ -114,18 +138,10 @@ private:
       }
 
       Eigen::Vector2d point = getLamniscate(t);
-
-      geometry_msgs::msg::PoseStamped pose;
-      pose.header = path.header;
-      pose.pose.position.x = point.x();
-      pose.pose.position.y = point.y();
-      pose.pose.position.z = 0.0;
-      pose.pose.orientation.w = 1.0;
-
-      path.poses.push_back(pose);
+      path_points.push_back(point);
     }
 
-    path_pub->publish(path);
+    visualizer.publishPath(path_points, "odom");
   }
 
   void sendVelocity(Eigen::Vector2d vel)
@@ -147,12 +163,11 @@ private:
 
   Eigen::Vector2d getLamniscate(double t)
   {
-    double a = 3.0;
     double theta = TRAJECTORY_FREQ * t;
 
     Eigen::Vector2d result;
-    result.x() = a*sqrt(2)*cos(theta)/(sin(theta)*sin(theta) + 1);
-    result.y() = a*sqrt(2)*cos(theta)*sin(theta)/(sin(theta)*sin(theta) + 1);
+    result.x() = A*sqrt(2)*cos(theta)/(sin(theta)*sin(theta) + 1);
+    result.y() = A*sqrt(2)*cos(theta)*sin(theta)/(sin(theta)*sin(theta) + 1);
 
     return result;
   }
@@ -160,9 +175,11 @@ private:
   // --------------------- Variables --------------------------
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr     odom_sub;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr          start_sub;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      cmd_vel_pub;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr            path_pub;
   rclcpp::TimerBase::SharedPtr                                 control_timer;
+
+  Visualizer                                                    visualizer;
 
   // robot and goal
   Eigen::Vector2d goal;
@@ -171,13 +188,14 @@ private:
 
   // time tracking
   rclcpp::Time t_start;
-  bool         is_first_iteration = true;
+  bool         active = false;
 
   // consts
   const double D = 0.05;
-  const double VEL_GAIN = 3.0;
+  const double VEL_GAIN = 1.0;
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
+  const double A = 3.0;
   const double TRAJECTORY_FREQ = 0.1;
   const double T = 2.0 * PI / TRAJECTORY_FREQ;
 };

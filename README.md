@@ -1,40 +1,104 @@
-# PMR TP1 - Path Planning Algorithms
+# PMR TP1
 
-This repository contains implementations of path planning algorithms for differential drive robots (specifically the iRobot Create 3) in ROS 2.
+ROS 2 package with path planning and control experiments for the iRobot Create 3 in Gazebo.
 
-## Tangent Bug Algorithm
+## Setup
 
-The Tangent Bug algorithm navigates towards a goal by following the direct path (Motion-to-Goal) until an obstacle is encountered. It then follows the boundary of the obstacle until it can resume its path to the goal.
+Source ROS 2 and install package dependencies from the workspace root:
 
-### Prerequisites
-
-- ROS 2 (Jazzy recommended)
-- Gazebo Sim
-- Eigen 3
-
-### Running the Algorithm
-
-1. **Build the workspace:**
-   ```bash
-   colcon build --packages-select pmr_tp1
-   source install/setup.bash
-   ```
-
-2. **Launch the Tangent Bug simulation:**
-   ```bash
-   ros2 launch pmr_tp1 tangent_bug.launch.py
-   ```
-   *Note: This command launches Gazebo, RViz, and the Tangent Bug node. The default world is `test_map.sdf`.*
-
-3. **Send a goal:**
-   In a new terminal, publish a point to the `/goal` topic:
-   ```bash
-   ros2 topic pub /goal geometry_msgs/msg/Point "{x: 5.0, y: 0.0, z: 0.0}" -1
-   ```
-
-### Configuration
-
-You can specify a different Gazebo world using the `world` argument:
 ```bash
-ros2 launch pmr_tp1 tangent_bug.launch.py world:=empty.sdf
+cd ~/Development/ros2/ros2_ws
+source /opt/ros/jazzy/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
 ```
+
+Build the package:
+
+```bash
+colcon build --packages-select pmr_tp1 --symlink-install
+source install/setup.bash
+```
+
+## Tangent Bug
+
+Launch the simulation, RViz, map server, and Tangent Bug node:
+
+```bash
+ros2 launch pmr_tp1 tangent_bug.launch.py
+```
+
+Send a goal:
+
+```bash
+ros2 topic pub --once /goal geometry_msgs/msg/Point "{x: 2.0, y: 0.0, z: 0.0}"
+```
+
+Optional launch arguments:
+
+```bash
+ros2 launch pmr_tp1 tangent_bug.launch.py world:=test_map.sdf
+ros2 launch pmr_tp1 tangent_bug.launch.py map_path:=/absolute/path/to/map.yaml
+ros2 launch pmr_tp1 tangent_bug.launch.py rviz_config_path:=/absolute/path/to/config.rviz
+```
+
+## Parametric Curve
+
+Launch the simulation, RViz, and parametric curve node:
+
+```bash
+ros2 launch pmr_tp1 parametric_curve.launch.py
+```
+
+Start or reset the curve:
+
+```bash
+ros2 topic pub --once \
+  /parametric_curve/start \
+  std_msgs/msg/Bool "{data: true}"
+```
+
+Stop the robot:
+
+```bash
+ros2 topic pub --once \
+  /parametric_curve/start \
+  std_msgs/msg/Bool "{data: false}"
+```
+
+## Path With Potential
+
+Launch the four-robot simulation, RViz, map server, and path-with-potential nodes:
+
+```bash
+ros2 launch pmr_tp1 path_with_potential.launch.py
+```
+
+Start or reset all robots. The command waits for four subscribers before publishing:
+
+```bash
+ros2 topic pub --once \
+  -w 4 \
+  /path_with_potential/start \
+  std_msgs/msg/Bool "{data: true}"
+```
+
+Stop all robots:
+
+```bash
+ros2 topic pub --once \
+  -w 4 \
+  /path_with_potential/start \
+  std_msgs/msg/Bool "{data: false}"
+```
+
+Optional launch arguments:
+
+```bash
+ros2 launch pmr_tp1 path_with_potential.launch.py world:=empty.sdf
+ros2 launch pmr_tp1 path_with_potential.launch.py map_path:=/absolute/path/to/map.yaml
+ros2 launch pmr_tp1 path_with_potential.launch.py rviz_config_path:=/absolute/path/to/config.rviz
+```
+
+## Potential Function
+
+Placeholder: add launch and interaction instructions after the potential function experiment is finalized.

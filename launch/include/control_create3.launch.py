@@ -4,14 +4,16 @@
 # Launch Create(R) 3 with diffdrive controller in Gazebo and optionally also in RViz.
 
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
-def generate_launch_description():
+def launch_setup(context, *args, **kwargs):
+    # Resolve namespace before delayed controller events run outside the launch context.
+    namespace = LaunchConfiguration('namespace').perform(context)
     pmr_tp1_pkg = FindPackageShare('pmr_tp1')
 
     control_params_file = PathJoinSubstitution(
@@ -20,6 +22,7 @@ def generate_launch_description():
     diffdrive_controller_node = Node(
         package='controller_manager',
         executable='spawner',
+        namespace=namespace,
         parameters=[control_params_file],
         arguments=[
             'diffdrive_controller',
@@ -35,6 +38,7 @@ def generate_launch_description():
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
+        namespace=namespace,
         arguments=[
             'joint_state_broadcaster',
             '-c',
@@ -54,10 +58,18 @@ def generate_launch_description():
         )
     )
 
+    return [
+        joint_state_broadcaster_spawner,
+        diffdrive_controller_callback
+    ]
+
+
+def generate_launch_description():
+    declare_namespace = DeclareLaunchArgument('namespace', default_value='', description='Robot namespace')
+
     ld = LaunchDescription()
 
-    ld.add_action(joint_state_broadcaster_spawner)
-    ld.add_action(diffdrive_controller_callback)
+    ld.add_action(declare_namespace)
+    ld.add_action(OpaqueFunction(function=launch_setup))
 
     return ld
-

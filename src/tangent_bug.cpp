@@ -6,6 +6,8 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/point_stamped.hpp>
 
+#include "pmr_tp1/visualizer.hpp"
+
 #include <eigen3/Eigen/Dense>
 
 #include <cmath>
@@ -14,30 +16,29 @@
 class TangentBug : public rclcpp::Node
 {
 public:
-  TangentBug()
-  : Node("tangent_bug")
+  TangentBug() : Node("tangent_bug"), visualizer(this)
   {
     // publishes and subscribers
     laser_sub = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "/scan",
+      "scan",
       rclcpp::SensorDataQoS(),
       std::bind(&TangentBug::laserCallback, this, std::placeholders::_1)
     );
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom",
+      "odom",
       10,
       std::bind(&TangentBug::odomCallback, this, std::placeholders::_1)
     );
 
     goal_sub = this->create_subscription<geometry_msgs::msg::Point>(
-      "/goal",
+      "goal",
       10,
       std::bind(&TangentBug::goalCallback, this, std::placeholders::_1)
     );
 
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "cmd_vel",
       10
     );
 
@@ -79,7 +80,6 @@ private:
 
       // transform the points to the map using the robot pose
       new_point = r_yaw * new_point + robot_pos;
-
       laser_points.push_back(new_point);
 
       if (r < min_dist)
@@ -122,14 +122,13 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received goal: (%.2lf, %.2lf)", msg->x, msg->y);
     goal = Eigen::Vector2d(msg->x, msg->y);
+    visualizer.publishPoint("goal_marker", goal, "map", 0, 0.0, 1.0, 0.0);
     goal_received = true;
 
     // reset state machine for the new goal
     current_state = State::MOTION_TO_GOAL;
-    last_heuristic = {1e9, 1e9};
     d_followed = 1e9;
     d_reach = 1e9;
-    check_unreachable = false;
   }
 
   void controlLoop()
@@ -138,6 +137,7 @@ private:
 
     // get discontinuity points 
     std::vector<Eigen::Vector2d> discontinuities = getDiscontinuities();
+    visualizer.publishPointsArray("discontinuities", discontinuities, "map");
 
     // calculate the heuristic to determine the best discontinuity point
     Eigen::Vector2d result_point = calculateHeuristic(discontinuities);
@@ -145,67 +145,68 @@ private:
     switch (current_state) {
 
       case State::MOTION_TO_GOAL:
-        // if path to goal is clear, send direct velocity
-        if (isGoalClear())
         {
-          double dist_to_goal = (goal - robot_pos).norm();
-          if (dist_to_goal < d_followed) d_followed = dist_to_goal;
+          // if path to goal is clear, send direct velocity
+          if (isGoalClear())
+          {
+            double dist_to_goal = (goal - robot_pos).norm();
+            if (dist_to_goal < d_followed) d_followed = dist_to_goal;
 
-          Eigen::Vector2d vel = goal - robot_pos;
-          vel = vel.normalized() * SPEED;
-          sendVelocity(vel);
-          return;
-        } 
+            Eigen::Vector2d vel = goal - robot_pos;
+            vel = vel.normalized() * SPEED;
+            sendVelocity(vel);
+            return;
+          } 
 
-        sendVelocity((result_point - robot_pos).normalized()*SPEED);
+          Eigen::Vector2d desired_vel = (result_point - robot_pos).normalized()*SPEED;
+          sendVelocity(desired_vel);
 
-        d_reach = (goal - result_point).norm();
-        if (d_reach > d_followed + HYSTERESIS)
-        {
-          // local minimum detected
-          RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
+          d_reach = (goal - result_point).norm();
+          if (d_reach > d_followed + HYSTERESIS)
+          {
+            // local minimum detected
+            RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
 
-          // get M point
-          M_point = getMPoint();
+            // get M point
+            M_point = getClosestObstToGoal();
+            visible_M_point = true;
 
-          // set d_followed to d(M, goal)
-          d_followed = (goal - M_point).norm();
+            // set d_followed to d(M, goal)
+            d_followed = (goal - M_point).norm();
 
-          // Initialize last_heuristic for continuity
-          last_heuristic = result_point;
+            // define boundary following direction
+            Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+            Eigen::Vector2d tangent_ccw = {to_obstacle.y(), -to_obstacle.x()};
+            Eigen::Vector2d heading = {cos(robot_yaw), sin(robot_yaw)};
 
-          // change state
-          current_state = State::BOUNDARY_FOLLOWING;
+            if (heading.dot(tangent_ccw) > 0) boundary_dir = 1;
+            else boundary_dir = -1;
+
+            // change state
+            current_state = State::BOUNDARY_FOLLOWING;
+          }
+          else if (d_reach < d_followed - HYSTERESIS)
+          {
+            d_followed = d_reach;
+          }
+          break;
         }
-        else
-      {
-          d_followed = d_reach;
-        }
-        break;
 
       case State::BOUNDARY_FOLLOWING:
         {
-          // get discontinuity closest to the one it was following
-          Eigen::Vector2d disc = result_point;
-          double min_dist = 1e9;
-          for (const auto& point : discontinuities)
-          {
-            double dist = (point - last_heuristic).norm();
-            if (dist < min_dist)
-            {
-              disc = point;
-              min_dist = dist;
-            }
-          }
+          Eigen::Vector2d to_obstacle = closest_point - robot_pos;
+          Eigen::Vector2d result_vel = {to_obstacle.y(), -to_obstacle.x()};
+          result_vel = boundary_dir * result_vel.normalized();
+
+          Eigen::Vector2d n = to_obstacle.normalized();
+          Eigen::Vector2d correction = - 1.0 * (SAFE_RADIUS - to_obstacle.norm()) * n;
+
+          result_vel = (result_vel + correction).normalized()*SPEED;
+          sendVelocity(result_vel);
 
           // get d_reach
-          d_reach = (goal - disc).norm();
-
-          // follow it
-          sendVelocity((disc - robot_pos).normalized()*SPEED);
-
-          // update last heuristic
-          last_heuristic = disc;
+          Eigen::Vector2d current_best = getClosestObstToGoal();
+          d_reach = (goal - current_best).norm();
 
           // check if d_reach < d_followed - HYSTERESIS
           if (d_reach < d_followed - HYSTERESIS)
@@ -213,14 +214,11 @@ private:
             RCLCPP_INFO(this->get_logger(), "Condition met. Going back to motion to goal.");
             current_state = State::MOTION_TO_GOAL;
             d_followed = d_reach;
-            check_unreachable = false;
             break;
           }
 
           // check for unreachable goal
-          // TODO: Add a more robust check to account for sensor noise 
-          Eigen::Vector2d current_best = getMPoint();
-          if (check_unreachable)
+          if (!visible_M_point)
           {
             if ((current_best - M_point).norm() < GOAL_UNREACHABLE_MIN)
             {
@@ -233,7 +231,7 @@ private:
           else if ((current_best - M_point).norm() > GOAL_UNREACHABLE_TH)
           {
             RCLCPP_INFO(this->get_logger(), "Checking for unreachable goal.");
-            check_unreachable = true;
+            visible_M_point = false;
           }
         }
         break;
@@ -323,11 +321,11 @@ private:
     if (laser_points.size() < 2) return laser_points;
 
     // compares the distance between one point and the next
-    const double THRESHOLD = 0.3;
+    const double MAX_DISCONTINUITY_RANGE = 7.0;
     std::vector<Eigen::Vector2d> discontinuities;
     for (size_t i = 0; i < laser_points.size() - 1; i++)
     {
-      if ((laser_points[i] - laser_points[i+1]).norm() >= THRESHOLD)
+      if ((laser_points[i] - laser_points[i+1]).norm() >= DISC_THRESHOLD)
       {
         discontinuities.push_back(laser_points[i]);
         discontinuities.push_back(laser_points[i+1]);
@@ -335,17 +333,26 @@ private:
     }
 
     // compare first and last points
-    if ((laser_points[0] - laser_points[laser_points.size() - 1]).norm() >= THRESHOLD)
+    if ((laser_points[0] - laser_points[laser_points.size() - 1]).norm() >= DISC_THRESHOLD)
     {
       discontinuities.push_back(laser_points[0]);
       discontinuities.push_back(laser_points[laser_points.size() - 1]);
     }
 
+    // remove "infinite" ranges
+    for (size_t i = 0; i < discontinuities.size();)
+    {
+      if ((discontinuities[i] - robot_pos).norm() > MAX_DISCONTINUITY_RANGE)
+      {
+        discontinuities.erase(discontinuities.begin() + i);
+      }
+      else i++;
+    }
+
     return discontinuities;
   }
 
-
-  Eigen::Vector2d getMPoint()
+  Eigen::Vector2d getClosestObstToGoal()
   {
     if (laser_points.empty()) return robot_pos;
 
@@ -401,6 +408,8 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      cmd_vel_pub;
   rclcpp::TimerBase::SharedPtr                                 control_timer;
 
+  Visualizer                                                    visualizer;
+
   // laser points vector
   std::vector<Eigen::Vector2d> laser_points; 
   Eigen::Vector2d              closest_point;
@@ -412,17 +421,18 @@ private:
   bool            goal_received = false;
 
   // state machine variables
-  Eigen::Vector2d  last_heuristic;
   Eigen::Vector2d  M_point;
   State            current_state = State::MOTION_TO_GOAL;
   double           d_followed;
   double           d_reach;
-  bool             check_unreachable = false;
+  bool             visible_M_point;
+  int              boundary_dir;
 
   // consts
   const double SPEED = 0.5;
-  const double SAFE_RADIUS = 0.4;
+  const double SAFE_RADIUS = 0.5;
   const double D = 0.05;
+  const double DISC_THRESHOLD = 1.0;
   const double TOLERANCE = 0.05;
   const double HYSTERESIS = 0.05;
   const double GOAL_UNREACHABLE_TH= 0.5;

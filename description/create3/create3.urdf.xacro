@@ -2,6 +2,7 @@
 <robot name="create3" xmlns:xacro="http://ros.org/wiki/xacro">
 
   <xacro:arg name="gazebo" default="ignition" />
+  <xacro:arg name="robot_name" default="create3" />
   <xacro:arg name="namespace" default="" />
 
   <xacro:include filename="$(find pmr_tp1)/description/create3/create3_base.urdf.xacro"/>
@@ -32,13 +33,17 @@
     <origin xyz="0.0 0.0 0.1" rpy="0 0 0"/> 
   </joint>
 
+  <gazebo reference="lidar_joint">
+    <preserveFixedJoint>true</preserveFixedJoint>
+  </gazebo>
+
   <gazebo reference="lidar_link">
     <sensor name="gpu_lidar" type="gpu_lidar">
       <update_rate>10.0</update_rate>
       <visualize>true</visualize>
       <always_on>true</always_on>
-      <topic>scan</topic>
-      <gz_frame_id>lidar_link</gz_frame_id>
+      <topic>$(arg namespace)/scan</topic>
+      <gz_frame_id>${'lidar_link' if '$(arg namespace)' == '' else '$(arg namespace)/lidar_link'}</gz_frame_id>
       <lidar>
         <scan>
           <horizontal>
@@ -50,7 +55,7 @@
         </scan>
         <range>
           <min>0.12</min>
-          <max>2.0</max>
+          <max>1.0</max>
           <resolution>0.01</resolution>
         </range>
       </lidar>
@@ -60,10 +65,10 @@
   <!-- ground truth odometry -->
   <gazebo>
     <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
-      <odom_topic>odom</odom_topic>
+      <odom_topic>$(arg namespace)/odom</odom_topic>
       <odom_frame>odom</odom_frame>
-      <robot_base_frame>base_link</robot_base_frame>
-      <tf_topic>tf</tf_topic> 
+      <robot_base_frame>$(arg namespace)/base_link</robot_base_frame>
+      <tf_topic>/tf</tf_topic> 
     </plugin>
   </gazebo>
 </robot>
