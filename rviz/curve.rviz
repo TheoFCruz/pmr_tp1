@@ -297,7 +297,7 @@ Visualization Manager:
           Value: false
       Marker Scale: 2
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: false
       Tree:
