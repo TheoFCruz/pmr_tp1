@@ -29,14 +29,14 @@ def generate_launch_description():
         launch_arguments={'world': world_name}.items()
     )
 
-    # RViz2
-    rviz = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        arguments=['-d', rviz_config_path],
-        parameters=[{'use_sim_time': True}]
+    rviz_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([pmr_tp1_pkg, 'launch', 'include', 'rviz_map.launch.py'])
+        ),
+        launch_arguments={
+            'map_name': 'empty_map.yaml',
+            'rviz_config_path': rviz_config_path
+        }.items()
     )
 
     # Parametric Curve Node
@@ -55,7 +55,7 @@ def generate_launch_description():
 
     # Add actions
     ld.add_action(sim_launch)
-    ld.add_action(rviz)
+    ld.add_action(rviz_launch)
     ld.add_action(parametric_curve_node)
 
     return ld

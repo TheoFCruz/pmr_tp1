@@ -11,7 +11,7 @@ def generate_launch_description():
 
     # Filepaths
     default_map_name = 'pot_func_map.yaml'
-    default_rviz_config_path = PathJoinSubstitution([pmr_tp1_pkg, 'rviz', 'bug.rviz'])
+    default_rviz_config_path = PathJoinSubstitution([pmr_tp1_pkg, 'rviz', 'potential.rviz'])
 
     # Arguments
     world_name = LaunchConfiguration('world')

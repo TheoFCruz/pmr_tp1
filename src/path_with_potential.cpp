@@ -195,9 +195,10 @@ private:
     if (!odom_received) return;
 
     Eigen::Vector2d trajectory_vel = calculateTrajectoryVelocity();
-    Eigen::Vector2d repulsive_vel = calculateRepulsiveVelocity();
+    Eigen::Vector2d obstacle_repulsion = calculateObstacleRepulsion();
+    Eigen::Vector2d agent_repulsion = calculateRobotRepulsion();
 
-    sendVelocity(trajectory_vel + repulsive_vel);
+    sendVelocity(trajectory_vel + obstacle_repulsion + agent_repulsion);
   }
 
   // ------------------ Utility Functions ---------------------
@@ -265,11 +266,6 @@ private:
     Eigen::Vector2d ff_vel = d_pos / (2.0 * dt);
 
     return VEL_GAIN * error + ff_vel;
-  }
-
-  Eigen::Vector2d calculateRepulsiveVelocity()
-  {
-    return calculateObstacleRepulsion() + calculateRobotRepulsion();
   }
 
   Eigen::Vector2d calculateObstacleRepulsion()

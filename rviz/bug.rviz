@@ -9,7 +9,7 @@ Panels:
         - /TF1/Frames1
         - /Map1/Topic1
       Splitter Ratio: 0.5
-    Tree Height: 811
+    Tree Height: 700
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -202,21 +202,143 @@ Visualization Manager:
       Value: true
       Visual Enabled: true
     - Class: rviz_default_plugins/TF
-      Enabled: false
+      Enabled: true
       Filter (blacklist): ""
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: false
-      Marker Scale: 1
+        base_link:
+          Value: true
+        bump_front_center:
+          Value: false
+        bump_front_left:
+          Value: false
+        bump_front_right:
+          Value: false
+        bump_left:
+          Value: false
+        bump_right:
+          Value: false
+        bumper:
+          Value: false
+        button_1:
+          Value: false
+        button_2:
+          Value: false
+        button_power:
+          Value: false
+        cliff_front_left:
+          Value: false
+        cliff_front_right:
+          Value: false
+        cliff_side_left:
+          Value: false
+        cliff_side_right:
+          Value: false
+        front_caster_link:
+          Value: false
+        imu_link:
+          Value: false
+        ir_intensity_front_center_left:
+          Value: false
+        ir_intensity_front_center_right:
+          Value: false
+        ir_intensity_front_left:
+          Value: false
+        ir_intensity_front_right:
+          Value: false
+        ir_intensity_left:
+          Value: false
+        ir_intensity_right:
+          Value: false
+        ir_intensity_side_left:
+          Value: false
+        ir_omni:
+          Value: false
+        left_wheel:
+          Value: false
+        lidar_link:
+          Value: false
+        map:
+          Value: false
+        mouse:
+          Value: false
+        odom:
+          Value: false
+        right_wheel:
+          Value: false
+        wheel_drop_left:
+          Value: false
+        wheel_drop_right:
+          Value: false
+      Marker Scale: 3
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
       Tree:
-        {}
+        map:
+          odom:
+            base_link:
+              bump_front_center:
+                {}
+              bump_front_left:
+                {}
+              bump_front_right:
+                {}
+              bump_left:
+                {}
+              bump_right:
+                {}
+              bumper:
+                {}
+              button_1:
+                {}
+              button_2:
+                {}
+              button_power:
+                {}
+              cliff_front_left:
+                {}
+              cliff_front_right:
+                {}
+              cliff_side_left:
+                {}
+              cliff_side_right:
+                {}
+              front_caster_link:
+                {}
+              imu_link:
+                {}
+              ir_intensity_front_center_left:
+                {}
+              ir_intensity_front_center_right:
+                {}
+              ir_intensity_front_left:
+                {}
+              ir_intensity_front_right:
+                {}
+              ir_intensity_left:
+                {}
+              ir_intensity_right:
+                {}
+              ir_intensity_side_left:
+                {}
+              ir_omni:
+                {}
+              lidar_link:
+                {}
+              mouse:
+                {}
+              wheel_drop_left:
+                left_wheel:
+                  {}
+              wheel_drop_right:
+                right_wheel:
+                  {}
       Update Interval: 0
-      Value: false
+      Value: true
     - Alpha: 0.699999988079071
       Binary representation: false
       Binary threshold: 100
@@ -278,7 +400,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker
       Namespaces:
-        /discontinuities: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -291,7 +413,7 @@ Visualization Manager:
       Enabled: true
       Name: Marker
       Namespaces:
-        /goal_marker: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -355,7 +477,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 86.82954406738281
+      Scale: 45.82271957397461
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
       X: 0.6533870697021484
@@ -364,10 +486,10 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1128
+  Height: 1011
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000015f000003befc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006300fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000042000003be000000d800fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f000003befc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730100000042000003be000000b100fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000078000000042fc0100000002fb0000000800540069006d00650100000000000007800000029b00fffffffb0000000800540069006d0065010000000000000450000000000000000000000506000003be00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000015f0000034dfc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003f0000034d000000cc00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000034dfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003f0000034d000000a900fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000078000000042fc0100000002fb0000000800540069006d00650100000000000007800000027b00fffffffb0000000800540069006d00650100000000000004500000000000000000000005060000034d00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -378,4 +500,4 @@ Window Geometry:
     collapsed: false
   Width: 1920
   X: 0
-  Y: 35
+  Y: 32
