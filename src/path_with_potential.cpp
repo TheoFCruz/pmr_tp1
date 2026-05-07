@@ -112,6 +112,24 @@ private:
       // transform the points to the map using the robot pose
       new_point = r_yaw * new_point + robot_pos;
 
+      // skip other robot laser readings
+      bool is_robot_point = false;
+      for (size_t j = 0; j<other_robot_positions.size(); j++)
+      {
+        if (!other_robot_odom_received[j]) continue;
+        if ((new_point - other_robot_positions[j]).norm() < ROBOT_LASER_TH)
+        {
+          is_robot_point = true;
+          break;
+        }
+      }
+      if (is_robot_point)
+      {
+        current_angle += msg->angle_increment;
+        continue;
+      }
+
+      // add point to vector
       laser_points.push_back(new_point);
 
       if (r < min_dist)
@@ -236,6 +254,10 @@ private:
     );
 
     Eigen::Vector2d error = followed_point - tracking_pos;
+    if (error.norm() > MAX_TRAJECTORY_ERROR)
+    {
+      error = error.normalized() * MAX_TRAJECTORY_ERROR;
+    }
 
     // feedforward velocity
     double dt = (double)LOOP_DT_MS / 1000.0;
@@ -256,10 +278,10 @@ private:
     double dist = (robot_pos - closest_point).norm();
 
     if (dist < Q_ESTRELA) {
-        Eigen::Vector2d rep_dir = (robot_pos - closest_point).normalized();
-        f_rep = ETA * (1.0/dist - 1.0/Q_ESTRELA) * (1.0/(dist * dist)) * rep_dir;
+      Eigen::Vector2d rep_dir = (robot_pos - closest_point).normalized();
+      f_rep = ETA * (1.0/dist - 1.0/Q_ESTRELA) * (1.0/(dist * dist)) * rep_dir;
     }
-    
+
     return f_rep;
   }
 
@@ -368,6 +390,7 @@ private:
   // consts
   const double D = 0.1;
   const double VEL_GAIN = 2.0;
+  const double MAX_TRAJECTORY_ERROR = 0.5;
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
   const double A = 4.0;
@@ -378,6 +401,7 @@ private:
   const double ROBOT_REPULSION_GAIN = 0.3;
   const double ETA = 1.3;
   const double Q_ESTRELA = 1.0;
+  const double ROBOT_LASER_TH = 0.3;
 };
 
 int main(int argc, char ** argv)

@@ -73,10 +73,10 @@ def generate_launch_description():
     )
 
     robot_configs = [
-        {'id': 1, 'name': 'robot_1', 'x': '4.0',  'y': '-7.0'},
-        {'id': 2, 'name': 'robot_2', 'x': '4.0',  'y': '7.0'},
-        {'id': 3, 'name': 'robot_3', 'x': '-4.0', 'y': '-7.0'},
-        {'id': 4, 'name': 'robot_4', 'x': '-4.0', 'y': '7.0'},
+        {'id': 1, 'name': 'robot_1', 'x': '8.5', 'y': '7.0'},
+        {'id': 2, 'name': 'robot_2', 'x': '8.5',  'y': '-7.0'},
+        {'id': 3, 'name': 'robot_3', 'x': '-8.5', 'y': '-7.0'},
+        {'id': 4, 'name': 'robot_4', 'x': '-8.5',  'y': '7.0'},
     ]
 
     ld = LaunchDescription()
