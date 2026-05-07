@@ -252,7 +252,15 @@ private:
 
   Eigen::Vector2d calculateObstacleRepulsion()
   {
-    return Eigen::Vector2d::Zero();
+    Eigen::Vector2d f_rep(0, 0);
+    double dist = (robot_pos - closest_point).norm();
+
+    if (dist < Q_ESTRELA) {
+        Eigen::Vector2d rep_dir = (robot_pos - closest_point).normalized();
+        f_rep = ETA * (1.0/dist - 1.0/Q_ESTRELA) * (1.0/(dist * dist)) * rep_dir;
+    }
+    
+    return f_rep;
   }
 
   Eigen::Vector2d calculateRobotRepulsion()
@@ -362,12 +370,14 @@ private:
   const double VEL_GAIN = 2.0;
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
-  const double A = 3.0;
-  const double TRAJECTORY_FREQ = 0.1;
+  const double A = 4.0;
+  const double TRAJECTORY_FREQ = 0.08;
   const double T = 2.0 * PI / TRAJECTORY_FREQ;
-  const double ROBOT_DELTA_T = 4.0;
+  const double ROBOT_DELTA_T = 8.0;
   const double ROBOT_EFFECTIVE_RADIUS = 1.0;
   const double ROBOT_REPULSION_GAIN = 0.5;
+  const double ETA = 1.3;
+  const double Q_ESTRELA = 1.4;
 };
 
 int main(int argc, char ** argv)

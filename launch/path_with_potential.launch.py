@@ -18,12 +18,12 @@ def generate_launch_description():
 
     declare_world = DeclareLaunchArgument(
         'world',
-        default_value='empty.sdf',
+        default_value='pot_func_map.sdf',
         description='Gazebo world name'
     )
     declare_map_path = DeclareLaunchArgument(
         'map_path',
-        default_value=PathJoinSubstitution([pmr_tp1_pkg, 'maps', 'empty_map.yaml']),
+        default_value=PathJoinSubstitution([pmr_tp1_pkg, 'maps', 'pot_func_map.yaml']),
         description='Path to the map YAML file'
     )
     declare_rviz_config_path = DeclareLaunchArgument(
@@ -73,10 +73,10 @@ def generate_launch_description():
     )
 
     robot_configs = [
-        {'id': 1, 'name': 'robot_1', 'x': '1.0',  'y': '1.0'},
-        {'id': 2, 'name': 'robot_2', 'x': '-1.0', 'y': '1.0'},
-        {'id': 3, 'name': 'robot_3', 'x': '-1.0', 'y': '-1.0'},
-        {'id': 4, 'name': 'robot_4', 'x': '1.0',  'y': '-1.0'},
+        {'id': 1, 'name': 'robot_1', 'x': '4.0',  'y': '-7.0'},
+        {'id': 2, 'name': 'robot_2', 'x': '4.0',  'y': '7.0'},
+        {'id': 3, 'name': 'robot_3', 'x': '-4.0', 'y': '-7.0'},
+        {'id': 4, 'name': 'robot_4', 'x': '-4.0', 'y': '7.0'},
     ]
 
     ld = LaunchDescription()
