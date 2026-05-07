@@ -129,6 +129,8 @@ private:
     current_state = State::MOTION_TO_GOAL;
     d_followed = 1e9;
     d_reach = 1e9;
+    heur_dist = 1e9;
+    best_heur_dist = 1e9;
   }
 
   void controlLoop()
@@ -153,16 +155,17 @@ private:
             if (dist_to_goal < d_followed) d_followed = dist_to_goal;
 
             Eigen::Vector2d vel = goal - robot_pos;
-            vel = vel.normalized() * SPEED;
+            // vel = vel.normalized() * SPEED;
             sendVelocity(vel);
             return;
           } 
 
-          Eigen::Vector2d desired_vel = (result_point - robot_pos).normalized()*SPEED;
+          // Eigen::Vector2d desired_vel = (result_point - robot_pos).normalized()*SPEED;
+          Eigen::Vector2d desired_vel = (result_point - robot_pos);
           sendVelocity(desired_vel);
 
-          d_reach = (goal - result_point).norm();
-          if (d_reach > d_followed + HYSTERESIS)
+          heur_dist = (goal - result_point).norm();
+          if (heur_dist > best_heur_dist + HYSTERESIS)
           {
             // local minimum detected
             RCLCPP_INFO(this->get_logger(), "Local minimum detected. Switching to boundary following.");
@@ -173,6 +176,7 @@ private:
 
             // set d_followed to d(M, goal)
             d_followed = (goal - M_point).norm();
+            d_reach = d_followed;
 
             // define boundary following direction
             Eigen::Vector2d to_obstacle = closest_point - robot_pos;
@@ -185,9 +189,9 @@ private:
             // change state
             current_state = State::BOUNDARY_FOLLOWING;
           }
-          else if (d_reach < d_followed - HYSTERESIS)
+          else if (heur_dist < best_heur_dist - HYSTERESIS)
           {
-            d_followed = d_reach;
+            best_heur_dist = heur_dist;
           }
           break;
         }
@@ -201,7 +205,8 @@ private:
           Eigen::Vector2d n = to_obstacle.normalized();
           Eigen::Vector2d correction = - 1.0 * (SAFE_RADIUS - to_obstacle.norm()) * n;
 
-          result_vel = (result_vel + correction).normalized()*SPEED;
+          // result_vel = (result_vel + correction).normalized()*SPEED;
+          result_vel = (result_vel + correction);
           sendVelocity(result_vel);
 
           // get d_reach
@@ -317,7 +322,6 @@ private:
     if (laser_points.size() < 2) return laser_points;
 
     // compares the distance between one point and the next
-    const double MAX_DISCONTINUITY_RANGE = 7.0;
     std::vector<Eigen::Vector2d> discontinuities;
     for (size_t i = 0; i < laser_points.size() - 1; i++)
     {
@@ -419,6 +423,8 @@ private:
   // state machine variables
   Eigen::Vector2d  M_point;
   State            current_state = State::MOTION_TO_GOAL;
+  double           heur_dist;
+  double           best_heur_dist;
   double           d_followed;
   double           d_reach;
   bool             visible_M_point;
@@ -433,6 +439,7 @@ private:
   const double HYSTERESIS = 0.05;
   const double GOAL_UNREACHABLE_TH= 0.5;
   const double GOAL_UNREACHABLE_MIN= 0.05;
+  const double MAX_DISCONTINUITY_RANGE = 7.0;
 };
 
 int main(int argc, char ** argv)
