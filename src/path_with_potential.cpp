@@ -388,12 +388,12 @@ private:
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
   const double A = 4.0;
-  const double TRAJECTORY_FREQ = 0.00125;
+  const double TRAJECTORY_FREQ = 0.012;
   const double T = 1 / TRAJECTORY_FREQ;
   const double ROBOT_DELTA_T = 8.0;
   const double ROBOT_EFFECTIVE_RADIUS = 1.5;
   const double ROBOT_REPULSION_GAIN = 0.3;
-  const double ETA = 1.3;
+  const double ETA = 1.1;
   const double Q_ESTRELA = 1.0;
   const double ROBOT_LASER_TH = 0.3;
 };
