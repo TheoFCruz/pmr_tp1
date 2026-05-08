@@ -161,9 +161,9 @@ private:
     cmd_vel_pub->publish(vel_twist);
   }
 
-  Eigen::Vector2d getLamniscate(double t)
+  Eigen::Vector2d getLemniscate(double t)
   {
-    double theta = TRAJECTORY_FREQ * t;
+    double theta = 2*PI*TRAJECTORY_FREQ*t;
 
     Eigen::Vector2d result;
     result.x() = A*sqrt(2)*cos(theta)/(sin(theta)*sin(theta) + 1);
@@ -192,12 +192,12 @@ private:
 
   // consts
   const double D = 0.1;
-  const double VEL_GAIN = 1.0;
+  const double VEL_GAIN = 0.7;
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
   const double A = 3.0;
-  const double TRAJECTORY_FREQ = 0.1;
-  const double T = 2.0 * PI / TRAJECTORY_FREQ;
+  const double TRAJECTORY_FREQ = 0.016;
+  const double T = 1 / TRAJECTORY_FREQ;
 };
 
 int main(int argc, char ** argv)

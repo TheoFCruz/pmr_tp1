@@ -303,13 +303,11 @@ private:
 
   Eigen::Vector2d getLemniscate(double t)
   {
-    double theta = TRAJECTORY_FREQ * t;
+    double theta = 2* PI * TRAJECTORY_FREQ * t;
 
     Eigen::Vector2d result;
-    result.x() = A * std::sqrt(2) * std::cos(theta) /
-      (std::sin(theta) * std::sin(theta) + 1);
-    result.y() = A * std::sqrt(2) * std::cos(theta) * std::sin(theta) /
-      (std::sin(theta) * std::sin(theta) + 1);
+    result.x() = A * std::sqrt(2) * std::cos(theta) / (std::sin(theta) * std::sin(theta) + 1);
+    result.y() = A * std::sqrt(2) * std::cos(theta) * std::sin(theta) / (std::sin(theta) * std::sin(theta) + 1);
 
     return result;
   }
@@ -390,8 +388,8 @@ private:
   const int    LOOP_DT_MS = 100;
   const double PI = 3.14159265358979323846;
   const double A = 4.0;
-  const double TRAJECTORY_FREQ = 0.08;
-  const double T = 2.0 * PI / TRAJECTORY_FREQ;
+  const double TRAJECTORY_FREQ = 0.00125;
+  const double T = 1 / TRAJECTORY_FREQ;
   const double ROBOT_DELTA_T = 8.0;
   const double ROBOT_EFFECTIVE_RADIUS = 1.5;
   const double ROBOT_REPULSION_GAIN = 0.3;
