@@ -82,7 +82,7 @@ private:
     tracking_pos.x() = robot_pos.x() + D * std::cos(robot_yaw);
     tracking_pos.y() = robot_pos.y() + D * std::sin(robot_yaw);
 
-    Eigen::Vector2d followed_point = getLamniscate(t);
+    Eigen::Vector2d followed_point = getLemniscate(t);
     visualizer.publishPoint(
       "/parametric_curve/followed_point",
       followed_point,
@@ -98,7 +98,7 @@ private:
 
     // estimate feedforward velocity
     double dt = (double)LOOP_DT_MS / 1000.0;
-    Eigen::Vector2d d_pos = getLamniscate(t + dt) - getLamniscate(t - dt); 
+    Eigen::Vector2d d_pos = getLemniscate(t + dt) - getLemniscate(t - dt); 
     Eigen::Vector2d ff_vel = d_pos / (2.0 * dt);
 
     // get result velocity command
@@ -137,7 +137,7 @@ private:
         t = T;
       }
 
-      Eigen::Vector2d point = getLamniscate(t);
+      Eigen::Vector2d point = getLemniscate(t);
       path_points.push_back(point);
     }
 
